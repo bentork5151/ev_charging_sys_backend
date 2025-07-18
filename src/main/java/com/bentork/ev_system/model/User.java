@@ -24,7 +24,6 @@ public class User {
     private String mobile;
     private String password; // null or blank if using only Google login
     private BigDecimal walletBalance = BigDecimal.ZERO;
-    private String role;
     private LocalDateTime createdAt = LocalDateTime.now();
 
     // === Getters and Setters ===
@@ -76,14 +75,6 @@ public class User {
 
     public void setWalletBalance(BigDecimal walletBalance) {
         this.walletBalance = walletBalance;
-    }
-    
-    public String getRole() {
-        return role;
-    }
-
-    public void setRole(String role) {
-        this.role = role;
     }
 
     public LocalDateTime getCreatedAt() {

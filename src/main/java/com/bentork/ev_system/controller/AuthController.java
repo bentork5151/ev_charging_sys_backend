@@ -40,7 +40,6 @@ public class AuthController {
         user.setEmail(request.getEmail());
         user.setMobile(request.getMobile());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
-        user.setRole("USER");
         userRepo.save(user);
         return ResponseEntity.ok("User registered successfully");
     }

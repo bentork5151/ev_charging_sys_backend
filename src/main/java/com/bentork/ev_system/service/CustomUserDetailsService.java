@@ -4,6 +4,8 @@ import com.bentork.ev_system.model.User;
 import com.bentork.ev_system.model.Admin;
 import com.bentork.ev_system.repository.UserRepository;
 import com.bentork.ev_system.repository.AdminRepository;
+
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,7 +29,7 @@ public class CustomUserDetailsService implements UserDetailsService {
             return new org.springframework.security.core.userdetails.User(
                 user.getEmail(),
                 user.getPassword(),
-                List.of(new SimpleGrantedAuthority(user.getRole()))
+                Collections.emptyList()
             );
         }
 

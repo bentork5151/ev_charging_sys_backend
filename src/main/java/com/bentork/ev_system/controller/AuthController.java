@@ -14,6 +14,8 @@ import com.bentork.ev_system.service.OtpDeliveryService;
 import com.bentork.ev_system.service.OtpService;
 import com.bentork.ev_system.config.JwtUtil;
 
+
+import java.util.Collections;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,6 +25,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -86,6 +89,7 @@ public class AuthController {
         return ResponseEntity.ok(new JwtResponse(token));
     }
     
+
     @PostMapping("/user/request-otp")
     public ResponseEntity<?> requestOtp(@RequestParam String email) {
         Optional<User> userOpt = userRepo.findByEmail(email);
@@ -143,6 +147,28 @@ public class AuthController {
         otpService.clearOtp(email);
 
         return ResponseEntity.ok("Password reset successful.");
+    }
+
+
+    @GetMapping("/user/google-login-success")
+    public ResponseEntity<?> googleLoginSuccess(OAuth2AuthenticationToken authToken) {
+        String email = authToken.getPrincipal().getAttribute("email");
+        String name = authToken.getPrincipal().getAttribute("name");
+
+        Optional<User> optionalUser = userRepo.findByEmail(email);
+        User user = optionalUser.orElseGet(() -> {
+            User newUser = new User();
+            newUser.setName(name);
+            newUser.setEmail(email);
+            newUser.setPassword(""); // No password as it's Google login
+            return userRepo.save(newUser);
+        });
+
+        UserDetails userDetails = new org.springframework.security.core.userdetails.User(
+            user.getEmail(), "", Collections.emptyList()
+        );
+        String token = jwtUtil.generateToken(userDetails);
+        return ResponseEntity.ok(new JwtResponse(token));
     }
 
 }

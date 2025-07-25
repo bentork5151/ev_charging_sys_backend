@@ -23,7 +23,7 @@ import io.github.cdimascio.dotenv.Dotenv;
 public class EvChargingSystemApplication {
 
     public static void main(String[] args) {
-        // ✅ Load .env file before starting the app
+        //✅ Load .env file before starting the app
         Dotenv dotenv = Dotenv.configure()
                               .directory("./")  // Location of .env (root folder)
                               .ignoreIfMalformed()

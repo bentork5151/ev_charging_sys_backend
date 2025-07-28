@@ -69,7 +69,7 @@ public class SecurityConfig {
                     "/api/user/google-login-success",
                     "/error"
                 ).permitAll()
-                .requestMatchers("/api/location/**").hasAuthority("ADMIN")
+                .requestMatchers("/api/location/**", "/api/stations/**").hasAuthority("ADMIN")
                 .anyRequest().authenticated()
             )
             .sessionManagement(session -> session

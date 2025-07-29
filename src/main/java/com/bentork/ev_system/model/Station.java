@@ -25,8 +25,8 @@ public class Station {
     private Location location;
 
     private String name;
-    private String ocppId;
-    private String type;
+//  private String ocppId;
+//  private String type;
     private String status;
     private String directionLink;
 
@@ -64,21 +64,21 @@ public class Station {
 		this.name = name;
 	}
 
-	public String getOcppId() {
-		return ocppId;
-	}
+//	public String getOcppId() {
+//		return ocppId;
+//	}
+//
+//	public void setOcppId(String ocppId) {
+//		this.ocppId = ocppId;
+//	}
 
-	public void setOcppId(String ocppId) {
-		this.ocppId = ocppId;
-	}
-
-	public String getType() {
-		return type;
-	}
-
-	public void setType(String type) {
-		this.type = type;
-	}
+//	public String getType() {
+//		return type;
+//	}
+//
+//	public void setType(String type) {
+//		this.type = type;
+//	}
 
 	public String getStatus() {
 		return status;

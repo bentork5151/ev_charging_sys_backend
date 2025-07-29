@@ -11,9 +11,9 @@ public class StationDTO {
 
     private String name;
 
-    private String ocppId;
-
-    private String type; // AC or DC
+//  private String ocppId;
+//
+//  private String type; // AC or DC
 
     private String status;
 
@@ -47,21 +47,21 @@ public class StationDTO {
 		this.name = name;
 	}
 
-	public String getOcppId() {
-		return ocppId;
-	}
-
-	public void setOcppId(String ocppId) {
-		this.ocppId = ocppId;
-	}
-
-	public String getType() {
-		return type;
-	}
-
-	public void setType(String type) {
-		this.type = type;
-	}
+//	public String getOcppId() {
+//		return ocppId;
+//	}
+//
+//	public void setOcppId(String ocppId) {
+//		this.ocppId = ocppId;
+//	}
+//
+//	public String getType() {
+//		return type;
+//	}
+//
+//	public void setType(String type) {
+//		this.type = type;
+//	}
 
 	public String getStatus() {
 		return status;

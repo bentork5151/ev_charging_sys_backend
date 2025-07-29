@@ -22,6 +22,7 @@ public class StationService {
 
     @Autowired
     private LocationRepository locationRepository;
+    
 
     /**
      * Create a new station
@@ -33,8 +34,8 @@ public class StationService {
         Station station = new Station();
         station.setLocation(location);
         station.setName(dto.getName());
-        station.setOcppId(dto.getOcppId());
-        station.setType(dto.getType());
+//      station.setOcppId(dto.getOcppId());
+//      station.setType(dto.getType());
         station.setStatus(dto.getStatus());
         station.setDirectionLink(dto.getDirectionLink());
 
@@ -73,8 +74,8 @@ public class StationService {
 
         station.setLocation(location);
         station.setName(dto.getName());
-        station.setOcppId(dto.getOcppId());
-        station.setType(dto.getType());
+//      station.setOcppId(dto.getOcppId());
+//      station.setType(dto.getType());
         station.setStatus(dto.getStatus());
         station.setDirectionLink(dto.getDirectionLink());
 
@@ -102,8 +103,8 @@ public class StationService {
         dto.setLocationId(station.getLocation().getId());
         dto.setLocationName(station.getLocation().getName());
         dto.setName(station.getName());
-        dto.setOcppId(station.getOcppId());
-        dto.setType(station.getType());
+//      dto.setOcppId(station.getOcppId());
+//      dto.setType(station.getType());
         dto.setStatus(station.getStatus());
         dto.setDirectionLink(station.getDirectionLink());
         dto.setCreatedAt(station.getCreatedAt());

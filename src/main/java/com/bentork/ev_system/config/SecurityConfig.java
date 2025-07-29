@@ -1,7 +1,7 @@
 package com.bentork.ev_system.config;
 
 import com.bentork.ev_system.service.CustomUserDetailsService;
-import com.bentork.ev_system.config.JwtAuthenticationFilter;
+//import com.bentork.ev_system.config.JwtAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -69,7 +69,7 @@ public class SecurityConfig {
                     "/api/user/google-login-success",
                     "/error"
                 ).permitAll()
-                .requestMatchers("/api/location/**").hasAuthority("ADMIN")
+                .requestMatchers("/api/location/**", "/api/stations/**").hasAuthority("ADMIN")
                 .anyRequest().authenticated()
             )
             .sessionManagement(session -> session

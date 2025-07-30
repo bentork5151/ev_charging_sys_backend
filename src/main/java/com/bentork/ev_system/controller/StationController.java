@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.bentork.ev_system.dto.request.StationDTO;
 import com.bentork.ev_system.service.StationService;
 
+@PreAuthorize("hasAuthority('ADMIN')")
 @RestController
 @RequestMapping("/api/stations")
 public class StationController {
@@ -25,7 +26,7 @@ public class StationController {
     private StationService stationService;
 
  
-    @PreAuthorize("hasAuthority('ADMIN')")
+//  @PreAuthorize("hasAuthority('ADMIN')")
     @PostMapping("/add")
     public ResponseEntity<String> createStation(@RequestBody StationDTO dto) {
         stationService.createStation(dto);
@@ -45,7 +46,7 @@ public class StationController {
     }
 
    
-    @PreAuthorize("hasAuthority('ADMIN')")
+//  @PreAuthorize("hasAuthority('ADMIN')")
     @PutMapping("/update/{id}")
     public ResponseEntity<String> updateStation(@PathVariable Long id, @RequestBody StationDTO dto) {
         stationService.updateStation(id, dto);
@@ -53,7 +54,7 @@ public class StationController {
     }
 
     
-    @PreAuthorize("hasAuthority('ADMIN')")
+//  @PreAuthorize("hasAuthority('ADMIN')")
     @DeleteMapping("/delete/{id}")
     public ResponseEntity<String> deleteStation(@PathVariable Long id) {
         stationService.deleteStation(id);

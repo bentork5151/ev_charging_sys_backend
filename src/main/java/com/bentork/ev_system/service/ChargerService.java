@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.bentork.ev_system.dto.request.ChargerDTO;
+import com.bentork.ev_system.mapper.ChargerMapper;
 import com.bentork.ev_system.model.Charger;
 import com.bentork.ev_system.model.Station;
 import com.bentork.ev_system.repository.ChargerRepository;
@@ -27,56 +28,28 @@ public class ChargerService {
         Station station = stationRepository.findById(dto.getStationId())
                 .orElseThrow(() -> new RuntimeException("Station not found"));
 
-        Charger charger = new Charger();
+        Charger charger = ChargerMapper.toEntity(dto);
         charger.setStation(station);
-        charger.setOcppId(dto.getOcppId());
-        charger.setConnectorType(dto.getConnectorType());
-        charger.setChargerType(dto.getChargerType());
-        charger.setRate(dto.getRate());
-        charger.setOccupied(dto.isOccupied());
-        charger.setAvailability(dto.isAvailability());
 
         chargerRepository.save(charger);
-
         return "Charger Created";
     }
 
 
     public List<ChargerDTO> getAllChargers() {
-        return chargerRepository.findAll().stream().map(charger -> {
-            ChargerDTO dto = new ChargerDTO();
-            dto.setId(charger.getId());
-            dto.setStationId(charger.getStation().getId());
-            dto.setStationName(charger.getStation().getName());
-            dto.setOcppId(charger.getOcppId());
-            dto.setConnectorType(charger.getConnectorType());
-            dto.setChargerType(charger.getChargerType());
-            dto.setRate(charger.getRate());
-            dto.setOccupied(charger.isOccupied());
-            dto.setAvailability(charger.isAvailability());
-            dto.setCreatedAt(charger.getCreatedAt());
-            return dto;
-        }).collect(Collectors.toList());
+        return chargerRepository.findAll()
+                .stream()
+                .map(ChargerMapper::toDto)
+                .collect(Collectors.toList());
     }
+
 
     public ChargerDTO getChargerById(Long id) {
         Charger charger = chargerRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Charger not found"));
-
-        ChargerDTO dto = new ChargerDTO();
-        dto.setId(charger.getId());
-        dto.setStationId(charger.getStation().getId());
-        dto.setStationName(charger.getStation().getName());
-        dto.setOcppId(charger.getOcppId());
-        dto.setConnectorType(charger.getConnectorType());
-        dto.setChargerType(charger.getChargerType());
-        dto.setRate(charger.getRate());
-        dto.setOccupied(charger.isOccupied());
-        dto.setAvailability(charger.isAvailability());
-        dto.setCreatedAt(charger.getCreatedAt());
-
-        return dto;
+        return ChargerMapper.toDto(charger);
     }
+
 
     public String updateCharger(Long id, ChargerDTO dto) {
         Charger charger = chargerRepository.findById(id)
@@ -96,6 +69,7 @@ public class ChargerService {
         chargerRepository.save(charger);
         return "Charger Updated";
     }
+
 
     public String deleteCharger(Long id) {
         if (!chargerRepository.existsById(id)) {

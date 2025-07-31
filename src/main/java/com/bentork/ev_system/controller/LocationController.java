@@ -1,6 +1,7 @@
 package com.bentork.ev_system.controller;
 
 import com.bentork.ev_system.dto.request.LocationDTO;
+import com.bentork.ev_system.mapper.LocationMapper;
 import com.bentork.ev_system.model.Admin;
 import com.bentork.ev_system.model.Location;
 import com.bentork.ev_system.repository.AdminRepository;
@@ -34,18 +35,11 @@ public class LocationController {
             return ResponseEntity.status(403).body(Collections.singletonMap("error", "Admin not found"));
         }
 
-        Location location = new Location();
-        location.setName(dto.getName());
-        location.setAddress(dto.getAddress());
-        location.setLatitude(dto.getLatitude());
-        location.setLongitude(dto.getLongitude());
-        location.setCity(dto.getCity());
-        location.setState(dto.getState());
-        location.setCreatedBy(admin.get());
-
+        Location location = LocationMapper.toEntity(dto, admin.get());
         locationRepository.save(location);
         return ResponseEntity.ok(Collections.singletonMap("message", "Location Added"));
     }
+
 
     // ✅ Get all locations
     @GetMapping("/all")
@@ -87,18 +81,11 @@ public class LocationController {
             return ResponseEntity.status(403).body(Collections.singletonMap("error", "Admin not found"));
         }
 
-        Location location = optionalLocation.get();
-        location.setName(updatedDto.getName());
-        location.setAddress(updatedDto.getAddress());
-        location.setLatitude(updatedDto.getLatitude());
-        location.setLongitude(updatedDto.getLongitude());
-        location.setCity(updatedDto.getCity());
-        location.setState(updatedDto.getState());
-        location.setCreatedBy(admin.get());
-
-        locationRepository.save(location);
+        Location updated = LocationMapper.updateEntity(optionalLocation.get(), updatedDto, admin.get());
+        locationRepository.save(updated);
         return ResponseEntity.ok(Collections.singletonMap("message", "Location Updated"));
     }
+
 
     // ✅ Delete location
     @DeleteMapping("/delete/{id}")

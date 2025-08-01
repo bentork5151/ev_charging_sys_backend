@@ -3,12 +3,14 @@ package com.bentork.ev_system.dto.request;
 //import com.bentork.ev_system.model.Admin;
 
 public class LocationDTO {
+	
     private String name;
     private String address;
     private Double latitude;
     private Double longitude;
     private String city;
     private String state;
+    
     
 	public String getName() {
 		return name;

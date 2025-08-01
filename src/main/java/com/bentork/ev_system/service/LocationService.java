@@ -1,6 +1,7 @@
 package com.bentork.ev_system.service;
 
 import com.bentork.ev_system.dto.request.LocationDTO;
+import com.bentork.ev_system.mapper.LocationMapper;
 import com.bentork.ev_system.model.Admin;
 import com.bentork.ev_system.model.Location;
 import com.bentork.ev_system.repository.AdminRepository;
@@ -17,21 +18,11 @@ public class LocationService {
     @Autowired
     private AdminRepository adminRepo;
 
-    public Location addLocation(LocationDTO dto, String adminEmail) {
-        Admin admin = adminRepo.findByEmail(adminEmail)
-                               .orElseThrow(() -> new RuntimeException("Admin not found"));
-
-        Location location = new Location();
-        location.setName(dto.getName());
-        location.setAddress(dto.getAddress());
-        location.setLatitude(dto.getLatitude());
-        location.setLongitude(dto.getLongitude());
-        location.setCity(dto.getCity());
-        location.setState(dto.getState());
-        location.setCreatedBy(admin);
-
+    public Location addLocation(LocationDTO dto, Admin admin) {
+        Location location = LocationMapper.toEntity(dto, admin);
         return locationRepo.save(location);
     }
+
 }
 
 

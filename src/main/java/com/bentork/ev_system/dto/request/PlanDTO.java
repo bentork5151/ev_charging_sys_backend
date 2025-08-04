@@ -1,12 +1,7 @@
 package com.bentork.ev_system.dto.request;
 
-import lombok.Getter;
-import lombok.Setter;
-
 import java.math.BigDecimal;
 
-@Getter
-@Setter
 public class PlanDTO {
     private Long id;
     private String planName;
@@ -16,4 +11,68 @@ public class PlanDTO {
     private String chargerType;
     private BigDecimal rate;
     private Long createdBy; // for response purposes only
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public String getPlanName() {
+        return planName;
+    }
+
+    public void setPlanName(String planName) {
+        this.planName = planName;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public Integer getDurationMin() {
+        return durationMin;
+    }
+
+    public void setDurationMin(Integer durationMin) {
+        this.durationMin = durationMin;
+    }
+
+    public BigDecimal getWalletDeduction() {
+        return walletDeduction;
+    }
+
+    public void setWalletDeduction(BigDecimal walletDeduction) {
+        this.walletDeduction = walletDeduction;
+    }
+
+    public String getChargerType() {
+        return chargerType;
+    }
+
+    public void setChargerType(String chargerType) {
+        this.chargerType = chargerType;
+    }
+
+    public BigDecimal getRate() {
+        return rate;
+    }
+
+    public void setRate(BigDecimal rate) {
+        this.rate = rate;
+    }
+
+    public Long getCreatedBy() {
+        return createdBy;
+    }
+
+    public void setCreatedBy(Long createdBy) {
+        this.createdBy = createdBy;
+    }
 }

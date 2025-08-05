@@ -1,9 +1,6 @@
 package com.bentork.ev_system.model;
 
-
 import jakarta.persistence.*;
-
-
 import java.math.BigDecimal;
 
 
@@ -31,6 +28,7 @@ public class Plan {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by")
     private Admin createdBy;
+
 
 	public Long getId() {
 		return id;
@@ -95,6 +93,5 @@ public class Plan {
 	public void setCreatedBy(Admin createdBy) {
 		this.createdBy = createdBy;
 	}
-    
     
 }

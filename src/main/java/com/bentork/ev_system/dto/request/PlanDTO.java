@@ -1,7 +1,5 @@
 package com.bentork.ev_system.dto.request;
 
-
-
 import java.math.BigDecimal;
 
 public class PlanDTO {
@@ -13,6 +11,7 @@ public class PlanDTO {
     private String chargerType;
     private BigDecimal rate;
     private Long createdBy; // for response purposes only
+
 	public Long getId() {
 		return id;
 	}
@@ -61,4 +60,5 @@ public class PlanDTO {
 	public void setCreatedBy(Long createdBy) {
 		this.createdBy = createdBy;
 	}
+
 }

@@ -10,6 +10,7 @@ import com.bentork.ev_system.model.Admin;
 import com.bentork.ev_system.model.User;
 import com.bentork.ev_system.repository.AdminRepository;
 import com.bentork.ev_system.repository.UserRepository;
+import com.bentork.ev_system.service.AdminNotificationService;
 import com.bentork.ev_system.service.OtpDeliveryService;
 import com.bentork.ev_system.service.OtpService;
 import com.bentork.ev_system.config.JwtUtil;
@@ -39,6 +40,7 @@ public class AuthController {
     @Autowired private JwtUtil jwtUtil;
     @Autowired private OtpDeliveryService otpDeliveryService;
     @Autowired private OtpService otpService;
+    @Autowired private AdminNotificationService adminNotificationService;
 
     @PostMapping("/user/signup")
     public ResponseEntity<?> registerUser(@RequestBody UserSignupRequest request) {
@@ -51,6 +53,10 @@ public class AuthController {
         user.setMobile(request.getMobile());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         userRepo.save(user);
+
+        // 🔔 Admin notification: User Registered
+        adminNotificationService.notifyNewUserRegistration(user.getName());
+
         return ResponseEntity.ok("User registered successfully");
     }
 

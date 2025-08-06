@@ -12,6 +12,7 @@ import java.security.Key;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.List;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Component
@@ -57,5 +58,20 @@ public class JwtUtil {
             return false; // Token is invalid
         }
     }
+
+    // Generic method to extract any claim from token
+    public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
+        final Claims claims = extractAllClaims(token);
+        return claimsResolver.apply(claims);
+    }
+
+    // Extract all claims from token using your secret
+    private Claims extractAllClaims(String token) {
+        return Jwts.parser()
+                .setSigningKey(secret.getBytes())
+                .parseClaimsJws(token)
+                .getBody();
+    }
+
 
 }

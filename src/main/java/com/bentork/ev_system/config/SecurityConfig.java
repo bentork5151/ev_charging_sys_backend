@@ -54,23 +54,31 @@ public class SecurityConfig {
             .exceptionHandling(ex -> ex
                 .authenticationEntryPoint(jwtAuthenticationEntryPoint) // ✅ Use custom entry point
             )
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers(
-                    "/api/user/signup",
-                    "/api/user/login",
-                    "/api/admin/signup",
-                    "/api/admin/login",
-                    "/api/user/request-otp",
-                    "/api/user/reset-password",
-                    "/api/admin/request-otp",
-                    "/api/admin/reset-password",
-                    "/oauth2/**",
-                    "/login/**",
-                    "/api/user/google-login-success",
-                    "/error"
-                ).permitAll()
-                .requestMatchers("/api/location/**", "/api/stations/**", "/api/chargers/**", "/api/plans/**", "/api/emergency-contacts/**").hasAuthority("ADMIN")
-                .anyRequest().authenticated()
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(
+                                "/api/user/signup",
+                                "/api/user/login",
+                                "/api/admin/signup",
+                                "/api/admin/login",
+                                "/api/user/request-otp",
+                                "/api/user/reset-password",
+                                "/api/admin/request-otp",
+                                "/api/admin/reset-password",
+                                "/oauth2/**",
+                                "/login/**",
+                                "/api/user/google-login-success",
+                                "/error"
+                        ).permitAll()
+                        .requestMatchers(
+                                "/api/location/**",
+                                "/api/stations/**",
+                                "/api/chargers/**",
+                                "/api/plans/**",
+                                "/api/emergency-contacts/**"
+                        ).hasAuthority("ADMIN")
+                        // ✅ Add this line to allow authenticated users to access sessions
+                        .requestMatchers("/api/sessions/**").authenticated()
+                        .anyRequest().authenticated()
             )
             .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS)

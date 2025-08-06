@@ -18,7 +18,6 @@ public class AdminNotificationMapper {
 
     public static AdminNotification toEntity(AdminNotificationDTO dto) {
         AdminNotification notification = new AdminNotification();
-        // NOTE: Admin object must be set in service manually
         notification.setMessage(dto.getMessage());
         notification.setType(dto.getType());
         notification.setRead(dto.isRead());

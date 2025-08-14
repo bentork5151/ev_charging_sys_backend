@@ -74,7 +74,8 @@ public class SecurityConfig {
                                 "/api/stations/**",
                                 "/api/chargers/**",
                                 "/api/plans/**",
-                                "/api/emergency-contacts/**"
+                                "/api/emergency-contacts/**",
+                                "/api/revenue/**"
                         ).hasAuthority("ADMIN")
                         // ✅ Add this line to allow authenticated users to access sessions
                         .requestMatchers("/api/sessions/**").authenticated()

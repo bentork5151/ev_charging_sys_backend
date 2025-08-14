@@ -29,6 +29,9 @@ public class SessionService {
     @Autowired
     private AdminNotificationService adminNotificationService;
 
+    @Autowired
+    private RevenueService revenueService;
+
 
     public SessionDTO startSession(Long userId, SessionDTO request) {
 
@@ -96,6 +99,13 @@ public class SessionService {
         response.setEnergyUsed(energyUsed);
         response.setCost(cost);
         response.setStatus("complete");
+        revenueService.recordRevenueForSession(
+                session,
+                cost,
+                "Wallet",
+                null,            // auto-generate transaction id if null
+                "success"
+        );
         return response;
     }
 

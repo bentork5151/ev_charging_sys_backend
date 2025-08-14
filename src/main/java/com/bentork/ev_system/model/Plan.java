@@ -3,6 +3,7 @@ package com.bentork.ev_system.model;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 
+
 @Entity
 @Table(name = "plans")
 public class Plan {
@@ -28,67 +29,69 @@ public class Plan {
     @JoinColumn(name = "created_by")
     private Admin createdBy;
 
-    public Long getId() {
-        return id;
-    }
 
-    public void setId(Long id) {
-        this.id = id;
-    }
+	public Long getId() {
+		return id;
+	}
 
-    public String getPlanName() {
-        return planName;
-    }
+	public void setId(Long id) {
+		this.id = id;
+	}
 
-    public void setPlanName(String planName) {
-        this.planName = planName;
-    }
+	public String getPlanName() {
+		return planName;
+	}
 
-    public String getDescription() {
-        return description;
-    }
+	public void setPlanName(String planName) {
+		this.planName = planName;
+	}
 
-    public void setDescription(String description) {
-        this.description = description;
-    }
+	public String getDescription() {
+		return description;
+	}
 
-    public Integer getDurationMin() {
-        return durationMin;
-    }
+	public void setDescription(String description) {
+		this.description = description;
+	}
 
-    public void setDurationMin(Integer durationMin) {
-        this.durationMin = durationMin;
-    }
+	public Integer getDurationMin() {
+		return durationMin;
+	}
 
-    public BigDecimal getWalletDeduction() {
-        return walletDeduction;
-    }
+	public void setDurationMin(Integer durationMin) {
+		this.durationMin = durationMin;
+	}
 
-    public void setWalletDeduction(BigDecimal walletDeduction) {
-        this.walletDeduction = walletDeduction;
-    }
+	public BigDecimal getWalletDeduction() {
+		return walletDeduction;
+	}
 
-    public String getChargerType() {
-        return chargerType;
-    }
+	public void setWalletDeduction(BigDecimal walletDeduction) {
+		this.walletDeduction = walletDeduction;
+	}
 
-    public void setChargerType(String chargerType) {
-        this.chargerType = chargerType;
-    }
+	public String getChargerType() {
+		return chargerType;
+	}
 
-    public BigDecimal getRate() {
-        return rate;
-    }
+	public void setChargerType(String chargerType) {
+		this.chargerType = chargerType;
+	}
 
-    public void setRate(BigDecimal rate) {
-        this.rate = rate;
-    }
+	public BigDecimal getRate() {
+		return rate;
+	}
 
-    public Admin getCreatedBy() {
-        return createdBy;
-    }
+	public void setRate(BigDecimal rate) {
+		this.rate = rate;
+	}
 
-    public void setCreatedBy(Admin createdBy) {
-        this.createdBy = createdBy;
-    }
+	public Admin getCreatedBy() {
+		return createdBy;
+	}
+
+	public void setCreatedBy(Admin createdBy) {
+		this.createdBy = createdBy;
+	}
+    
 }

@@ -1,6 +1,7 @@
 package com.bentork.ev_system.service;
 
 import com.bentork.ev_system.dto.request.SessionDTO;
+import com.bentork.ev_system.mapper.SessionMapper;
 import com.bentork.ev_system.model.Charger;
 import com.bentork.ev_system.model.Session;
 import com.bentork.ev_system.model.User;
@@ -25,7 +26,15 @@ public class SessionService {
     @Autowired
     private ChargerRepository chargerRepository;
 
+    @Autowired
+    private AdminNotificationService adminNotificationService;
+
+    @Autowired
+    private RevenueService revenueService;
+
+
     public SessionDTO startSession(Long userId, SessionDTO request) {
+
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
@@ -41,6 +50,12 @@ public class SessionService {
         session.setCreatedAt(LocalDateTime.now());
 
         sessionRepository.save(session);
+
+        // 🔔 Admin notification: session started
+        adminNotificationService.createSystemNotification(
+                "User '" + user.getName() + "' started a session on charger '" + charger.getOcppId() + "' at " + LocalDateTime.now(),
+                "SESSION_STARTED"
+        );
 
         SessionDTO response = new SessionDTO();
         response.setSessionId(session.getId());
@@ -68,12 +83,29 @@ public class SessionService {
 
         sessionRepository.save(session);
 
+        // 🔔 Admin notification: session ended
+        User user = session.getUser();
+        Charger charger = session.getCharger();
+
+        adminNotificationService.createSystemNotification(
+                "User '" + user.getName() + "' ended session on charger '" + charger.getOcppId() + "' at " + session.getEndTime()
+                        + ". Energy used: " + String.format("%.2f", energyUsed) + " kWh, Cost: ₹" + String.format("%.2f", cost),
+                "SESSION_ENDED"
+        );
+
         SessionDTO response = new SessionDTO();
         response.setSessionId(session.getId());
         response.setMessage("Charging session completed");
         response.setEnergyUsed(energyUsed);
         response.setCost(cost);
         response.setStatus("complete");
+        revenueService.recordRevenueForSession(
+                session,
+                cost,
+                "Wallet",
+                null,            // auto-generate transaction id if null
+                "success"
+        );
         return response;
     }
 

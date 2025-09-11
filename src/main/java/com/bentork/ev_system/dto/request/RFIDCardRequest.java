@@ -6,8 +6,17 @@ import lombok.Data;
 public class RFIDCardRequest {
     private Long userId;
     private String cardNumber;
+    private String boxId;
 
     // Getters and Setters
+    public String getBoxId() {
+        return boxId;
+    }
+
+    public void setBoxId(String boxId) {
+        this.boxId = boxId;
+    }
+
     public Long getUserId() {
         return userId;
     }

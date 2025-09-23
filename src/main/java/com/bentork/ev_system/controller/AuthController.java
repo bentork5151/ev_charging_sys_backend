@@ -15,7 +15,6 @@ import com.bentork.ev_system.service.OtpDeliveryService;
 import com.bentork.ev_system.service.OtpService;
 import com.bentork.ev_system.config.JwtUtil;
 
-
 import java.util.Collections;
 import java.util.Optional;
 
@@ -33,14 +32,22 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api")
 public class AuthController {
 
-    @Autowired private UserRepository userRepo;
-    @Autowired private AdminRepository adminRepo;
-    @Autowired private PasswordEncoder passwordEncoder;
-    @Autowired private AuthenticationManager authenticationManager;
-    @Autowired private JwtUtil jwtUtil;
-    @Autowired private OtpDeliveryService otpDeliveryService;
-    @Autowired private OtpService otpService;
-    @Autowired private AdminNotificationService adminNotificationService;
+    @Autowired
+    private UserRepository userRepo;
+    @Autowired
+    private AdminRepository adminRepo;
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+    @Autowired
+    private AuthenticationManager authenticationManager;
+    @Autowired
+    private JwtUtil jwtUtil;
+    @Autowired
+    private OtpDeliveryService otpDeliveryService;
+    @Autowired
+    private OtpService otpService;
+    @Autowired
+    private AdminNotificationService adminNotificationService;
 
     @PostMapping("/user/signup")
     public ResponseEntity<?> registerUser(@RequestBody UserSignupRequest request) {
@@ -63,8 +70,7 @@ public class AuthController {
     @PostMapping("/user/login")
     public ResponseEntity<?> loginUser(@RequestBody UserLoginRequest request) {
         Authentication authentication = authenticationManager.authenticate(
-            new UsernamePasswordAuthenticationToken(request.getEmailOrMobile(), request.getPassword())
-        );
+                new UsernamePasswordAuthenticationToken(request.getEmailOrMobile(), request.getPassword()));
         UserDetails userDetails = (UserDetails) authentication.getPrincipal();
         String token = jwtUtil.generateToken(userDetails);
         return ResponseEntity.ok(new JwtResponse(token));
@@ -88,64 +94,67 @@ public class AuthController {
     @PostMapping("/admin/login")
     public ResponseEntity<?> loginAdmin(@RequestBody AdminLoginRequest request) {
         Authentication authentication = authenticationManager.authenticate(
-            new UsernamePasswordAuthenticationToken(request.getEmailOrMobile(), request.getPassword())
-        );
+                new UsernamePasswordAuthenticationToken(request.getEmailOrMobile(), request.getPassword()));
         UserDetails userDetails = (UserDetails) authentication.getPrincipal();
         String token = jwtUtil.generateToken(userDetails);
         return ResponseEntity.ok(new JwtResponse(token));
     }
-    
 
     @PostMapping("/user/request-otp")
     public ResponseEntity<?> requestOtp(@RequestParam String email) {
         Optional<User> userOpt = userRepo.findByEmail(email);
-        if (userOpt.isEmpty()) return ResponseEntity.badRequest().body("Email not found");
+        if (userOpt.isEmpty())
+            return ResponseEntity.badRequest().body("Email not found");
 
         String otp = otpService.generateOtp(email);
         otpDeliveryService.sendOtp(email, otp);
         return ResponseEntity.ok("OTP sent to your email.");
     }
+
     @PostMapping("/user/reset-password")
     public ResponseEntity<?> resetPasswordViaOtp(
             @RequestParam String email,
             @RequestParam String otp,
-            @RequestParam String newPassword
-        ) {
-            if (!otpService.validateOtp(email, otp)) {
-                return ResponseEntity.badRequest().body("Invalid OTP");
-            }
-
-            Optional<User> userOpt = userRepo.findByEmail(email);
-            if (userOpt.isEmpty()) return ResponseEntity.badRequest().body("User not found");
-
-            User user = userOpt.get();
-            user.setPassword(passwordEncoder.encode(newPassword));
-            userRepo.save(user);
-            otpService.clearOtp(email);
-
-            return ResponseEntity.ok("Password reset successful.");
+            @RequestParam String newPassword) {
+        if (!otpService.validateOtp(email, otp)) {
+            return ResponseEntity.badRequest().body("Invalid OTP");
         }
+
+        Optional<User> userOpt = userRepo.findByEmail(email);
+        if (userOpt.isEmpty())
+            return ResponseEntity.badRequest().body("User not found");
+
+        User user = userOpt.get();
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepo.save(user);
+        otpService.clearOtp(email);
+
+        return ResponseEntity.ok("Password reset successful.");
+    }
+
     @PostMapping("/admin/request-otp")
     public ResponseEntity<?> requestAdminOtp(@RequestParam String email) {
         Optional<Admin> adminOpt = adminRepo.findByEmail(email);
-        if (adminOpt.isEmpty()) return ResponseEntity.badRequest().body("Admin email not found");
+        if (adminOpt.isEmpty())
+            return ResponseEntity.badRequest().body("Admin email not found");
 
         String otp = otpService.generateOtp(email);
         otpDeliveryService.sendOtp(email, otp);
         return ResponseEntity.ok("OTP sent to admin email.");
     }
+
     @PostMapping("/admin/reset-password")
     public ResponseEntity<?> resetAdminPasswordViaOtp(
             @RequestParam String otp,
-            @RequestParam String newPassword
-    ) {
+            @RequestParam String newPassword) {
         String email = otpService.getEmailByOtp(otp);
         if (email == null) {
             return ResponseEntity.badRequest().body("Invalid or expired OTP");
         }
 
         Optional<Admin> adminOpt = adminRepo.findByEmail(email);
-        if (adminOpt.isEmpty()) return ResponseEntity.badRequest().body("Admin not found");
+        if (adminOpt.isEmpty())
+            return ResponseEntity.badRequest().body("Admin not found");
 
         Admin admin = adminOpt.get();
         admin.setPassword(passwordEncoder.encode(newPassword));
@@ -154,7 +163,6 @@ public class AuthController {
 
         return ResponseEntity.ok("Password reset successful.");
     }
-
 
     @GetMapping("/user/google-login-success")
     public ResponseEntity<?> googleLoginSuccess(OAuth2AuthenticationToken authToken) {
@@ -171,8 +179,7 @@ public class AuthController {
         });
 
         UserDetails userDetails = new org.springframework.security.core.userdetails.User(
-            user.getEmail(), "", Collections.emptyList()
-        );
+                user.getEmail(), "", Collections.emptyList());
         String token = jwtUtil.generateToken(userDetails);
         return ResponseEntity.ok(new JwtResponse(token));
     }

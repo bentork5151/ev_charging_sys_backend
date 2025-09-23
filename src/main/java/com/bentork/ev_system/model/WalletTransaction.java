@@ -30,6 +30,8 @@ public class WalletTransaction {
 
     private LocalDateTime createdAt = LocalDateTime.now();
 
+    private Long sessionId; // ✅ NEW - link to Session if applicable
+
     // Getters and setters
     public Long getId() {
         return id;
@@ -93,6 +95,14 @@ public class WalletTransaction {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Long getSessionId() {
+        return sessionId;
+    }
+
+    public void setSessionId(Long sessionId) {
+        this.sessionId = sessionId;
     }
 
 }

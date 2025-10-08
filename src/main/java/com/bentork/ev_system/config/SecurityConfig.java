@@ -76,15 +76,11 @@ public class SecurityConfig {
                                 "/api/chargers/**",
                                 "/api/plans/**",
                                 "/api/emergency-contacts/**",
- Vishwas
                                 "/api/revenue/**"
                         ).hasAuthority("ADMIN")
 
                         .requestMatchers("/api/user-plan-selection/**").permitAll()
 
-                                "/api/revenue/**")
-                        .hasAuthority("ADMIN")
- main
                         // ✅ Add this line to allow authenticated users to access sessions
                         .requestMatchers("/api/sessions/**").authenticated()
                         .anyRequest().authenticated())
@@ -179,3 +175,4 @@ public class SecurityConfig {
 // return provider;
 // }
 // }
+

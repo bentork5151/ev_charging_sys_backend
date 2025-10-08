@@ -77,6 +77,9 @@ public class SecurityConfig {
                                 "/api/emergency-contacts/**",
                                 "/api/revenue/**"
                         ).hasAuthority("ADMIN")
+
+                        .requestMatchers("/api/user-plan-selection/**").permitAll()
+
                         // ✅ Add this line to allow authenticated users to access sessions
                         .requestMatchers("/api/sessions/**").authenticated()
                         .anyRequest().authenticated()

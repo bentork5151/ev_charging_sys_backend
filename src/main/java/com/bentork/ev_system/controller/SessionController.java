@@ -106,4 +106,5 @@ public class SessionController {
 		// ensureAdmin(authHeader);
 		return ResponseEntity.ok(sessionService.getTotalEnergyConsumed());
 	}
+
 }

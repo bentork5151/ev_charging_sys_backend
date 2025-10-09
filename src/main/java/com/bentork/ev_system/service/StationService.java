@@ -8,8 +8,10 @@ import org.springframework.stereotype.Service;
 
 import com.bentork.ev_system.dto.request.StationDTO;
 import com.bentork.ev_system.mapper.StationMapper;
+import com.bentork.ev_system.model.Charger;
 import com.bentork.ev_system.model.Location;
 import com.bentork.ev_system.model.Station;
+import com.bentork.ev_system.repository.ChargerRepository;
 import com.bentork.ev_system.repository.LocationRepository;
 import com.bentork.ev_system.repository.StationRepository;
 
@@ -23,6 +25,9 @@ public class StationService {
 
     @Autowired
     private LocationRepository locationRepository;
+
+    @Autowired
+    private ChargerRepository chargerRepository;
 
     public StationDTO createStation(StationDTO dto) {
         Location location = locationRepository.findById(dto.getLocationId())
@@ -68,5 +73,46 @@ public class StationService {
             throw new EntityNotFoundException("Station not found with ID: " + id);
         }
         stationRepository.deleteById(id);
+    }
+
+    // Total Stations
+    public Long getTotalStations() {
+        return stationRepository.count();
+    }
+
+    // Active Stations
+    public Long getActiveStations() {
+        return stationRepository.findAll().stream()
+                .filter(station -> "ACTIVE".equalsIgnoreCase(station.getStatus()))
+                .count();
+    }
+
+    // Average Uptime (76%)
+    public Double getAverageUptime() {
+        List<Station> stations = stationRepository.findAll();
+
+        if (stations.isEmpty()) {
+            return 0.0;
+        }
+
+        double totalUptime = 0.0;
+        int stationCount = 0;
+
+        for (Station station : stations) {
+            List<Charger> chargers = chargerRepository.findByStationId(station.getId());
+
+            if (!chargers.isEmpty()) {
+                long availableChargers = chargers.stream()
+                        .filter(charger -> Boolean.TRUE.equals(charger.isAvailability()))
+                        .count();
+
+                double stationUptime = (availableChargers * 100.0) / chargers.size();
+                totalUptime += stationUptime;
+                stationCount++;
+            }
+        }
+
+        double avgUptime = stationCount > 0 ? totalUptime / stationCount : 0.0;
+        return Math.round(avgUptime * 100.0) / 100.0; // Round to 2 decimals
     }
 }

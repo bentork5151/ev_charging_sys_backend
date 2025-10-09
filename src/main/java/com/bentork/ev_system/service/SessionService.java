@@ -252,4 +252,19 @@ public class SessionService {
 			}
 		}, durationMin, TimeUnit.MINUTES);
 	}
+
+	// Count total completed sessions
+	public long getTotalSessions() {
+		return sessionRepository.findAll().stream()
+				.filter(s -> "completed".equalsIgnoreCase(s.getStatus()))
+				.count();
+	}
+
+	// Sum total energy consumed (kWh)
+	public double getTotalEnergyConsumed() {
+		return sessionRepository.findAll().stream()
+				.filter(s -> "completed".equalsIgnoreCase(s.getStatus()))
+				.mapToDouble(Session::getEnergyKwh)
+				.sum();
+	}
 }

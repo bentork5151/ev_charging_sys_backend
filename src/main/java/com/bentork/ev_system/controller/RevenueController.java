@@ -8,6 +8,7 @@ import com.bentork.ev_system.service.RevenueService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @RestController
@@ -41,16 +42,24 @@ public class RevenueController {
 
     @GetMapping("/{id}")
     public ResponseEntity<RevenueDTO> byId(@PathVariable Long id,
-                                           @RequestHeader("Authorization") String auth) {
+            @RequestHeader("Authorization") String auth) {
         ensureAdmin(auth);
         return ResponseEntity.ok(revenueService.getById(id));
     }
 
     @DeleteMapping("/delete/{id}")
     public ResponseEntity<String> delete(@PathVariable Long id,
-                                         @RequestHeader("Authorization") String auth) {
+            @RequestHeader("Authorization") String auth) {
         ensureAdmin(auth);
         revenueService.delete(id);
         return ResponseEntity.ok("Revenue deleted");
     }
+
+    @GetMapping("/total")
+    public ResponseEntity<BigDecimal> getTotalRevenue(
+            @RequestHeader("Authorization") String auth) {
+        ensureAdmin(auth);
+        return ResponseEntity.ok(revenueService.getTotalRevenue());
+    }
+
 }

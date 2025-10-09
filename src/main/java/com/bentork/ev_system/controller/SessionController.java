@@ -14,6 +14,7 @@ import com.bentork.ev_system.service.ReceiptService;
 import com.bentork.ev_system.service.SessionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -90,5 +91,19 @@ public class SessionController {
 
 		Map<String, Object> result = sessionService.stopSession(user.getId(), request);
 		return ResponseEntity.ok(result);
+	}
+
+	// @PreAuthorize("hasAuthority('ADMIN')")
+	@GetMapping("/total")
+	public ResponseEntity<Long> getTotalSessions(@RequestHeader("Authorization") String authHeader) {
+		// ensureAdmin(authHeader);
+		return ResponseEntity.ok(sessionService.getTotalSessions());
+	}
+
+	// @PreAuthorize("hasAuthority('ADMIN')")
+	@GetMapping("/energy")
+	public ResponseEntity<Double> getTotalEnergy(@RequestHeader("Authorization") String authHeader) {
+		// ensureAdmin(authHeader);
+		return ResponseEntity.ok(sessionService.getTotalEnergyConsumed());
 	}
 }

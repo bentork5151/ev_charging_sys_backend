@@ -76,6 +76,12 @@ public class AuthController {
         return ResponseEntity.ok(new JwtResponse(token));
     }
 
+    // Total users - admin only
+    @GetMapping("/users/total")
+    public ResponseEntity<Long> getTotalUsers(@RequestHeader("Authorization") String authHeader) {
+        return ResponseEntity.ok(userRepo.count());
+    }
+
     @PostMapping("/admin/signup")
     public ResponseEntity<?> registerAdmin(@RequestBody AdminSignupRequest request) {
         if (adminRepo.existsByEmail(request.getEmail())) {

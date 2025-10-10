@@ -1,5 +1,6 @@
 package com.bentork.ev_system.service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -53,5 +54,34 @@ public class RFIDCardService {
     // Delete card
     public void deleteCard(Long id) {
         cardRepo.deleteById(id);
+    }
+
+    // Total Cards
+    public Long getTotalCards() {
+        return cardRepo.count();
+    }
+
+    // Active Cards
+    public Long getActiveCards() {
+        return cardRepo.findAll().stream()
+                .filter(RFIDCard::isActive)
+                .count();
+    }
+
+    // Inactive Cards
+    public Long getInactiveCards() {
+        return cardRepo.findAll().stream()
+                .filter(card -> !card.isActive())
+                .count();
+    }
+
+    // Recently Added - Last 7 days
+    public Long getRecentlyAddedCards() {
+        LocalDateTime sevenDaysAgo = LocalDateTime.now().minusDays(7);
+
+        return cardRepo.findAll().stream()
+                .filter(card -> card.getCreatedAt() != null
+                        && card.getCreatedAt().isAfter(sevenDaysAgo))
+                .count();
     }
 }

@@ -21,31 +21,31 @@ import lombok.NoArgsConstructor;
 @Builder
 public class Charger {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+	@Id
+	@GeneratedValue(strategy = GenerationType.IDENTITY)
+	private Long id;
 
-    @ManyToOne
-    @JoinColumn(name = "station_id", nullable = false)
-    private Station station;
+	@ManyToOne
+	@JoinColumn(name = "station_id", nullable = false)
+	private Station station;
 
-    @Column(nullable = false, unique = true)
-    private String ocppId;
+	@Column(nullable = false, unique = true)
+	private String ocppId;
 
-    @Column(nullable = false)
-    private String connectorType;
+	@Column(nullable = false)
+	private String connectorType;
 
-    @Column(nullable = false)
-    private String chargerType; // AC or DC
+	@Column(nullable = false)
+	private String chargerType; // AC or DC
 
-    @Column(nullable = false)
-    private Double rate;
+	@Column(nullable = false)
+	private Double rate;
 
-    private boolean isOccupied;
+	private boolean isOccupied;
 
-    private boolean availability;
+	private boolean availability;
 
-    private LocalDateTime createdAt = LocalDateTime.now();
+	private LocalDateTime createdAt = LocalDateTime.now();
 
 	public Long getId() {
 		return id;

@@ -17,82 +17,101 @@ import com.bentork.ev_system.repository.ReceiptRepository;
 @Service
 public class ReceiptService {
 
-	@Autowired
-	private ReceiptRepository receiptRepository;
+    @Autowired
+    private ReceiptRepository receiptRepository;
 
-	@Autowired
-	private WalletTransactionService walletTransactionService;
+    @Autowired
+    private WalletTransactionService walletTransactionService;
 
-	@Autowired
-	@Lazy
-	private SessionService sessionService;
+    @Autowired
+    private UserNotificationService userNotificationService;
 
-	// Create pending receipt
-	public Receipt createReceipt(User user, Plan plan, Charger charger) {
+    @Autowired
+    @Lazy
+    private SessionService sessionService;
 
-		Receipt receipt = new Receipt();
-		receipt.setUser(user);
-		receipt.setPlan(plan);
-		receipt.setCharger(charger);
-		receipt.setAmount(plan.getRate());
-		receipt.setStatus("PENDING");
-		receipt.setCreatedAt(LocalDateTime.now());
-		return receiptRepository.save(receipt);
-	}
+    /**
+     * Creates a new receipt (PENDING) for either a plan or a kWh package/custom.
+     */
+    public Receipt createReceipt(User user, Plan plan, Charger charger, BigDecimal selectedKwh) {
+        Receipt receipt = new Receipt();
+        receipt.setUser(user);
+        receipt.setPlan(plan);
+        receipt.setCharger(charger);
 
-	public Receipt payReceipt(Long receoptId, String boxId) {
+        BigDecimal amount;
+        if (plan != null) {
+            amount = plan.getWalletDeduction(); // prepaid amount from plan
+        } else {
+            amount = selectedKwh.multiply(BigDecimal.valueOf(charger.getRate())); // charger.rate is Double
+            receipt.setSelectedKwh(selectedKwh);
+        }
 
-		Receipt receipt = receiptRepository.findById(receoptId)
-				.orElseThrow(() -> new RuntimeException("Receipt not found"));
+        receipt.setAmount(amount);
+        receipt.setStatus("PENDING");
+        receipt.setCreatedAt(LocalDateTime.now());
+        return receiptRepository.save(receipt);
+    }
 
-		Long userId = receipt.getUser().getId();
-		BigDecimal amount = receipt.getAmount();
+    /**
+     * Debits wallet, marks receipt PAID, and starts session.
+     * If charger fails to start → refund & notify user.
+     */
+    public Receipt payReceipt(Long receiptId, String boxId) {
+        Receipt receipt = receiptRepository.findById(receiptId)
+                .orElseThrow(() -> new RuntimeException("Receipt not found"));
 
-		if (!walletTransactionService.hasBalance(userId, amount)) {
-			throw new RuntimeException("Insuffisiant walllet balence.Please to-up");
+        Long userId = receipt.getUser().getId();
+        BigDecimal amount = receipt.getAmount();
 
-		}
+        // ✅ Wallet balance check
+        if (!walletTransactionService.hasBalance(userId, amount)) {
+            userNotificationService.createNotification(
+                    userId,
+                    "Insufficient Wallet Balance",
+                    "You need ₹" + amount + " but your wallet balance is too low. Please top-up.",
+                    "WALLET_ERROR");
+            throw new RuntimeException("Insufficient wallet balance. Please top-up.");
+        }
 
-		walletTransactionService.debit(userId, null, amount, "Charging Payment");
+        // ✅ Debit wallet
+        walletTransactionService.debit(userId, null, amount, "Charging Payment");
+        receipt.setStatus("PAID");
+        receipt.setUpdatedAt(LocalDateTime.now());
+        receiptRepository.save(receipt);
 
-		receipt.setStatus("PAID");
-		receipt.setUpdatedAt(LocalDateTime.now());
-		receiptRepository.save(receipt);
+        // ✅ Start session
+        Session session = sessionService.startSessionFromReceipt(receipt, boxId);
+        receipt.setSession(session);
+        walletTransactionService.updateSessionIdForUser(userId, amount, session.getId());
 
-		Session session = sessionService.startSessionFromReceipt(receipt, boxId);
-		receipt.setSession(session);
+        if ("failed".equalsIgnoreCase(session.getStatus())) {
+            userNotificationService.createNotification(
+                    userId,
+                    "Charging Failed",
+                    "Your charging session could not start. You have been refunded ₹" + amount,
+                    "CHARGER_ERROR");
+            walletTransactionService.credit(userId, session.getId(), amount, "CHARGING_REFUND");
+            receipt.setStatus("REFUNDED");
+        }
 
-		if ("failed".equalsIgnoreCase(session.getStatus())) {
-			walletTransactionService.credit(userId, session.getId(), amount, "CHARGING_REFUND");
-			receipt.setStatus("REFUNDED");
-		}
+        return receiptRepository.save(receipt);
+    }
 
-		return receiptRepository.save(receipt);
-	}
+    /**
+     * Finalizes receipt after session ends.
+     */
+    public void finalizeReceipt(Session session, BigDecimal finalCost) {
+        Receipt receipt = receiptRepository.findBySession(session)
+                .orElseThrow(() -> new RuntimeException("Linked receipt not found"));
 
-	public void finalizeReceipt(Session session, BigDecimal finalCost) {
-		Receipt receipt = receiptRepository.findBySession(session)
-				.orElseThrow(() -> new RuntimeException("Linked receipt not found"));
+        receipt.setAmount(finalCost);
+        receipt.setStatus("FINALIZED");
+        receipt.setUpdatedAt(LocalDateTime.now());
+        receiptRepository.save(receipt);
+    }
 
-		receipt.setStatus("FINALIZED");
-		receipt.setUpdatedAt(LocalDateTime.now());
-		receiptRepository.save(receipt);
-
-		// If actual cost < prepaid → refund difference
-		if (finalCost.compareTo(receipt.getAmount()) < 0) {
-			BigDecimal refund = receipt.getAmount().subtract(finalCost);
-			walletTransactionService.credit(session.getUser().getId(), session.getId(), refund,
-					"CHARGING_SETTLE_REFUND");
-		}
-
-		// If actual cost > prepaid → debit extra
-		if (finalCost.compareTo(receipt.getAmount()) > 0) {
-			BigDecimal extra = finalCost.subtract(receipt.getAmount());
-			walletTransactionService.debit(session.getUser().getId(), session.getId(), extra, "CHARGING_SETTLE_DEBIT");
-		}
-	}
-
-	public Receipt save(Receipt receipt) {
-		return receiptRepository.save(receipt);
-	}
+    public Receipt save(Receipt receipt) {
+        return receiptRepository.save(receipt);
+    }
 }

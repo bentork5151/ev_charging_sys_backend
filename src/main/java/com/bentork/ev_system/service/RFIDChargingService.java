@@ -8,10 +8,13 @@ import org.springframework.stereotype.Service;
 
 import com.bentork.ev_system.model.Charger;
 import com.bentork.ev_system.model.RFIDCard;
+import com.bentork.ev_system.model.Revenue;
 import com.bentork.ev_system.model.Session;
 import com.bentork.ev_system.model.User;
+import com.bentork.ev_system.model.WalletTransaction;
 import com.bentork.ev_system.repository.ChargerRepository;
 import com.bentork.ev_system.repository.RFIDCardRepository;
+import com.bentork.ev_system.repository.RevenueRepository;
 import com.bentork.ev_system.repository.SessionRepository;
 import com.bentork.ev_system.repository.UserRepository;
 
@@ -30,6 +33,10 @@ public class RFIDChargingService {
     private UserNotificationService notificationService;
     @Autowired
     private AdminNotificationService adminNotificationService;
+    @Autowired
+    private WalletTransactionService walletTxService;
+    @Autowired
+    private RevenueRepository revenueRepo;
 
     // Start charging
     public Session startCharging(String cardNumber, Long chargerId, String boxId) {
@@ -122,12 +129,36 @@ public class RFIDChargingService {
 
         Session saved = sessionRepo.save(session);
 
-        // Notify admins about session end
+        // 🔹 Final cost
+        BigDecimal finalCost = BigDecimal.valueOf(saved.getCost());
+        if (finalCost.compareTo(BigDecimal.ZERO) > 0) {
+            // 1. Wallet debit
+            WalletTransaction tx = walletTxService.debit(
+                    saved.getUser().getId(),
+                    saved.getId(),
+                    BigDecimal.valueOf(saved.getCost()),
+                    "Wallet");
+            // 2. Add to revenue
+            Revenue revenue = new Revenue();
+            revenue.setSession(saved);
+            revenue.setUser(saved.getUser());
+            revenue.setCharger(saved.getCharger());
+            revenue.setStation(saved.getCharger().getStation()); // assuming Charger → Station mapping
+            revenue.setAmount(saved.getCost());
+            revenue.setPaymentMethod("Wallet");
+            revenue.setTransactionId(tx.getTransactionRef()); // use WalletTransaction reference
+            revenue.setPaymentStatus("success");
+
+            revenueRepo.save(revenue);
+        }
+
+        // Notify admins
         adminNotificationService.createSystemNotification(
-                "Charging session completed for User " + session.getUser().getName() +
-                        ". Total cost: ₹" + session.getCost(),
+                "Charging session completed for User " + saved.getUser().getName() +
+                        ". Total cost: ₹" + saved.getCost(),
                 "SESSION_END");
 
         return saved;
     }
+
 }

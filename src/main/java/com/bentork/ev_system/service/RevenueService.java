@@ -8,7 +8,9 @@ import com.bentork.ev_system.repository.RevenueRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.List;
+
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -24,18 +26,27 @@ public class RevenueService {
 
     /* package-private */
     Revenue recordRevenueForSession(Session session,
-                                    double amount,
-                                    String paymentMethod,
-                                    String transactionId,
-                                    String paymentStatus) {
+            double amount,
+            String paymentMethod,
+            String transactionId,
+            String paymentStatus) {
         Revenue revenue = RevenueMapper.fromSession(
                 session,
                 paymentMethod,
                 transactionId != null ? transactionId : "TXN-" + UUID.randomUUID(),
                 paymentStatus != null ? paymentStatus : "success",
-                amount
-        );
+                amount);
         return revenueRepository.save(revenue);
+    }
+
+    // Calculate Total Revenue
+    public BigDecimal getTotalRevenue() {
+        double total = revenueRepository.findAll().stream()
+                .filter(r -> "SUCCESS".equalsIgnoreCase(r.getPaymentStatus()))
+                .mapToDouble(Revenue::getAmount)
+                .sum();
+
+        return BigDecimal.valueOf(total);
     }
 
     public List<RevenueDTO> getAllRevenue() {
@@ -51,7 +62,8 @@ public class RevenueService {
     }
 
     public void delete(Long id) {
-        if (!revenueRepository.existsById(id)) throw new RuntimeException("Revenue not found");
+        if (!revenueRepository.existsById(id))
+            throw new RuntimeException("Revenue not found");
         revenueRepository.deleteById(id);
     }
 }

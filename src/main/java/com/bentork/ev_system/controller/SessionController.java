@@ -9,16 +9,15 @@ import com.bentork.ev_system.model.Session;
 import com.bentork.ev_system.model.User;
 import com.bentork.ev_system.repository.ChargerRepository;
 import com.bentork.ev_system.repository.PlanRepository;
-import com.bentork.ev_system.repository.ReceiptRepository;
-import com.bentork.ev_system.repository.SessionRepository;
 import com.bentork.ev_system.repository.UserRepository;
 import com.bentork.ev_system.service.ReceiptService;
 import com.bentork.ev_system.service.SessionService;
-import com.bentork.ev_system.service.WalletTransactionService;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/sessions")
@@ -28,116 +27,96 @@ public class SessionController {
 	private SessionService sessionService;
 
 	@Autowired
-	private JwtUtil jwtUtil;
+	private ReceiptService receiptService;
 
 	@Autowired
 	private PlanRepository planRepository;
 
 	@Autowired
-	private UserRepository userRepository;
-
-	@Autowired
 	private ChargerRepository chargerRepository;
 
 	@Autowired
-	private ReceiptService receiptService;
-	
-	@Autowired
-	private ReceiptRepository receiptRepository;
-	
-	@Autowired
-	private SessionRepository sessionRepository;
+	private JwtUtil jwtUtil;
 
 	@Autowired
-	private WalletTransactionService walletTransactionService;
+	private UserRepository userRepository;
 
+	/**
+	 * Start session using prepaid plan OR kWh package/custom.
+	 * Creates receipt → debits wallet → starts session.
+	 * Returns receiptId, sessionId, and amount debited.
+	 */
 	@PostMapping("/start")
-	public ResponseEntity<SessionDTO> startSession(@RequestBody SessionDTO request,
-			@RequestHeader("Authorization") String authHeader) {
-
-		String token = authHeader.substring(7); // Remove "Bearer "
-		String email = jwtUtil.extractUsername(token);
-		User user = userRepository.findByEmail(email).orElseThrow(() -> new RuntimeException("User not found"));
-
-		Plan plan = planRepository.findById(request.getPlanId())
-				.orElseThrow(() -> new RuntimeException("Plan with id " + request.getPlanId() + " not found"));
-
-		Charger charger = chargerRepository.findById(request.getChargerId())
-				.orElseThrow(() -> new RuntimeException("Charger not found"));
-
-		// Create pending receipt
-		Receipt receipt = receiptService.createReceipt(user, plan, charger);
-
-		// 4️ Check wallet balance
-		if (!walletTransactionService.hasBalance(user.getId(), receipt.getAmount())) {
-			throw new RuntimeException("Insufficient wallet balance. Please top-up and retry.");
-		}
-
-		// 5️ Deduct wallet & mark receipt as PAID
-		walletTransactionService.debit(user.getId(), null, receipt.getAmount(), "CHARGING_PAYMENT");
-		receipt.setStatus("PAID");
-		receiptService.save(receipt);
-
-		// 6️ Start session
-		Session session = sessionService.startSessionFromReceipt(receipt, request.getBoxId());
-		receipt.setSession(session);
-
-		// 7️ Handle charger failure → refund & mark REFUNDED
-		if ("failed".equalsIgnoreCase(session.getStatus())) {
-			walletTransactionService.credit(user.getId(), null, receipt.getAmount(), "CHARGING_REFUND");
-			receipt.setStatus("REFUNDED");
-			receiptService.save(receipt);
-			throw new RuntimeException("Charger failed to start. Payment refunded.");
-		}
-		// 8️ Build response
-		SessionDTO response = new SessionDTO();
-		response.setSessionId(session.getId());
-		response.setMessage("Charging session started successfully.");
-		response.setStatus(session.getStatus());
-		response.setUserId(user.getId());
-		response.setChargerId(charger.getId());
-		response.setBoxId(session.getBoxId());
-		response.setPlanId(plan.getId()); // plan you fetched earlier
-		response.setEnergyUsed(session.getEnergyKwh());
-		response.setCost(session.getCost());
-
-		return ResponseEntity.ok(response);
-
-	}
-
-	@PostMapping("/stop")
-	public ResponseEntity<SessionDTO> stopSession(@RequestBody SessionDTO request,
+	public ResponseEntity<Map<String, Object>> startSession(
+			@RequestBody SessionDTO request,
 			@RequestHeader("Authorization") String authHeader) {
 
 		String token = authHeader.substring(7);
 		String email = jwtUtil.extractUsername(token);
-		User user = userRepository.findByEmail(email).orElseThrow(() -> new RuntimeException("User not found"));
+		User user = userRepository.findByEmail(email)
+				.orElseThrow(() -> new RuntimeException("User not found"));
 
-		// service updates session in DB
-		sessionService.stopSession(user.getId(), request);
+		Charger charger = chargerRepository.findById(request.getChargerId())
+				.orElseThrow(() -> new RuntimeException("Charger not found"));
 
-		// fetch session again to build response
-		Session session = sessionRepository.findById(request.getSessionId())
-				.orElseThrow(() -> new RuntimeException("Session not found after stop"));
+		Plan plan = null;
+		if (request.getPlanId() != null) {
+			plan = planRepository.findById(request.getPlanId())
+					.orElseThrow(() -> new RuntimeException("Plan not found"));
+		}
 
-		// build DTO
-		SessionDTO response = new SessionDTO();
-		response.setSessionId(session.getId());
-		response.setMessage("Charging session stopped successfully.");
-		response.setStatus(session.getStatus());
-		response.setUserId(user.getId());
-		response.setChargerId(session.getCharger().getId());
-		response.setBoxId(session.getBoxId());
+		Receipt receipt = receiptService.createReceipt(user, plan, charger, request.getSelectedKwh());
+		Receipt paidReceipt = receiptService.payReceipt(receipt.getId(), request.getBoxId());
+		Session session = paidReceipt.getSession();
 
-		// ✅ planId safely from receipt
-		receiptRepository.findBySession(session).ifPresent(receipt -> {
-			response.setPlanId(receipt.getPlan().getId());
-		});
+		return ResponseEntity.ok(Map.of(
+				"receiptId", paidReceipt.getId(),
+				"sessionId", session.getId(),
+				"amountDebited", paidReceipt.getAmount(),
+				"message", "Session started successfully."));
+	}
 
-		response.setEnergyUsed(session.getEnergyKwh());
-		response.setCost(session.getCost()); // ✅ now BigDecimal, no mismatch
+	/**
+	 * Stop session, finalize cost and return energy used, refund/extra flags.
+	 */
+	@PostMapping("/stop")
+	public ResponseEntity<Map<String, Object>> stopSession(
+			@RequestBody SessionDTO request,
+			@RequestHeader("Authorization") String authHeader) {
 
-		return ResponseEntity.ok(response);
+		String token = authHeader.substring(7);
+		String email = jwtUtil.extractUsername(token);
+		User user = userRepository.findByEmail(email)
+				.orElseThrow(() -> new RuntimeException("User not found"));
+
+		Map<String, Object> result = sessionService.stopSession(user.getId(), request);
+		return ResponseEntity.ok(result);
+	}
+
+	// @PreAuthorize("hasAuthority('ADMIN')")
+	@GetMapping("/total")
+	public ResponseEntity<Long> getTotalSessions(@RequestHeader("Authorization") String authHeader) {
+		// ensureAdmin(authHeader);
+		return ResponseEntity.ok(sessionService.getTotalSessions());
+	}
+
+	// @PreAuthorize("hasAuthority('ADMIN')")
+	@GetMapping("/energy")
+	public ResponseEntity<Double> getTotalEnergy(@RequestHeader("Authorization") String authHeader) {
+		// ensureAdmin(authHeader);
+		return ResponseEntity.ok(sessionService.getTotalEnergyConsumed());
+	}
+
+	// Active Sessions
+	@GetMapping("/active")
+	public ResponseEntity<Long> getActiveSessions(@RequestHeader("Authorization") String authHeader) {
+		return ResponseEntity.ok(sessionService.getActiveSessions());
+	}
+
+	// Average Uptime
+	@GetMapping("/uptime")
+	public ResponseEntity<Double> getAverageUptime(@RequestHeader("Authorization") String authHeader) {
+		return ResponseEntity.ok(sessionService.getAverageUptime());
 	}
 
 }

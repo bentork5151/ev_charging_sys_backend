@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 
 import org.springframework.web.bind.annotation.RestController;
@@ -25,25 +26,25 @@ public class RFIDCardController {
     @Autowired
     private RFIDCardService cardService;
 
-    // ✅ Register card
+    // Register card
     @PostMapping("/register")
     public ResponseEntity<RFIDCard> register(@RequestBody RFIDCardRequest req) {
         return ResponseEntity.ok(cardService.registerCard(req));
     }
 
-    // ✅ Get all cards
+    // Get all cards
     @GetMapping
     public ResponseEntity<List<RFIDCard>> getAll() {
         return ResponseEntity.ok(cardService.getAllCards());
     }
 
-    // ✅ Get one card
+    // Get one card
     @GetMapping("/{id}")
     public ResponseEntity<RFIDCard> getOne(@PathVariable Long id) {
         return ResponseEntity.ok(cardService.getCard(id));
     }
 
-    // ✅ Update card status
+    // Update card status
     @PutMapping("/{id}/status")
     public ResponseEntity<RFIDCard> updateStatus(
             @PathVariable Long id,
@@ -53,10 +54,34 @@ public class RFIDCardController {
         return ResponseEntity.ok(updated);
     }
 
-    // ✅ Delete card
+    // Delete card
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         cardService.deleteCard(id);
         return ResponseEntity.noContent().build();
+    }
+
+    // Total Cards
+    @GetMapping("/total")
+    public ResponseEntity<Long> getTotalCards(@RequestHeader("Authorization") String authHeader) {
+        return ResponseEntity.ok(cardService.getTotalCards());
+    }
+
+    // Active Cards
+    @GetMapping("/active")
+    public ResponseEntity<Long> getActiveCards(@RequestHeader("Authorization") String authHeader) {
+        return ResponseEntity.ok(cardService.getActiveCards());
+    }
+
+    // Inactive Cards
+    @GetMapping("/inactive")
+    public ResponseEntity<Long> getInactiveCards(@RequestHeader("Authorization") String authHeader) {
+        return ResponseEntity.ok(cardService.getInactiveCards());
+    }
+
+    // Recently Added - Last 7 days
+    @GetMapping("/recent")
+    public ResponseEntity<Long> getRecentlyAddedCards(@RequestHeader("Authorization") String authHeader) {
+        return ResponseEntity.ok(cardService.getRecentlyAddedCards());
     }
 }

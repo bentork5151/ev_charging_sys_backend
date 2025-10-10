@@ -21,7 +21,9 @@ public class Receipt {
 	@ManyToOne
 	private Charger charger;
 
-	private BigDecimal amount;
+	private BigDecimal amount; // Total prepaid amount
+
+	private BigDecimal selectedKwh; // ✅ NEW - kWh purchased (for package/custom)
 
 	// PENDING, PAID, REFUNDED, FINALIZED
 	private String status;
@@ -102,6 +104,14 @@ public class Receipt {
 
 	public void setSession(Session session) {
 		this.session = session;
+	}
+
+	public BigDecimal getSelectedKwh() {
+		return selectedKwh;
+	}
+
+	public void setSelectedKwh(BigDecimal selectedKwh) {
+		this.selectedKwh = selectedKwh;
 	}
 
 }

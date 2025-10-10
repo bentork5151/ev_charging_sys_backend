@@ -107,4 +107,16 @@ public class SessionController {
 		return ResponseEntity.ok(sessionService.getTotalEnergyConsumed());
 	}
 
+	// Active Sessions
+	@GetMapping("/active")
+	public ResponseEntity<Long> getActiveSessions(@RequestHeader("Authorization") String authHeader) {
+		return ResponseEntity.ok(sessionService.getActiveSessions());
+	}
+
+	// Average Uptime
+	@GetMapping("/uptime")
+	public ResponseEntity<Double> getAverageUptime(@RequestHeader("Authorization") String authHeader) {
+		return ResponseEntity.ok(sessionService.getAverageUptime());
+	}
+
 }

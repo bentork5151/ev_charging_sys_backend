@@ -267,4 +267,27 @@ public class SessionService {
 				.mapToDouble(Session::getEnergyKwh)
 				.sum();
 	}
+
+	// Active Sessions - Sessions that are currently in progress
+	public Long getActiveSessions() {
+		return sessionRepository.findAll().stream()
+				.filter(session -> "active".equalsIgnoreCase(session.getStatus()))
+				.count();
+	}
+
+	// Average Uptime - Based on successful vs total sessions
+	public Double getAverageUptime() {
+		long totalSessions = sessionRepository.count();
+
+		if (totalSessions == 0) {
+			return 0.0;
+		}
+
+		long completedSessions = sessionRepository.findAll().stream()
+				.filter(session -> "completed".equalsIgnoreCase(session.getStatus()))
+				.count();
+
+		double uptime = (completedSessions * 100.0) / totalSessions;
+		return Math.round(uptime * 100.0) / 100.0; // Round to 2 decimals
+	}
 }

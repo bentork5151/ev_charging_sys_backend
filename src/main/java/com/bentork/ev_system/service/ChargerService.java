@@ -13,8 +13,6 @@ import com.bentork.ev_system.model.Station;
 import com.bentork.ev_system.repository.ChargerRepository;
 import com.bentork.ev_system.repository.StationRepository;
 
-
-
 @Service
 public class ChargerService {
 
@@ -35,7 +33,6 @@ public class ChargerService {
         return "Charger Created";
     }
 
-
     public List<ChargerDTO> getAllChargers() {
         return chargerRepository.findAll()
                 .stream()
@@ -43,13 +40,11 @@ public class ChargerService {
                 .collect(Collectors.toList());
     }
 
-
     public ChargerDTO getChargerById(Long id) {
         Charger charger = chargerRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Charger not found"));
         return ChargerMapper.toDto(charger);
     }
-
 
     public String updateCharger(Long id, ChargerDTO dto) {
         Charger charger = chargerRepository.findById(id)
@@ -70,7 +65,6 @@ public class ChargerService {
         return "Charger Updated";
     }
 
-
     public String deleteCharger(Long id) {
         if (!chargerRepository.existsById(id)) {
             throw new RuntimeException("Charger not found");
@@ -78,5 +72,31 @@ public class ChargerService {
         chargerRepository.deleteById(id);
         return "Charger Deleted";
     }
-}
 
+    // Total Chargers
+    public Long getTotalChargers() {
+        return chargerRepository.count();
+    }
+
+    // Available Chargers - Chargers that are available and not occupied
+    public Long getAvailableChargers() {
+        return chargerRepository.findAll().stream()
+                .filter(charger -> Boolean.TRUE.equals(charger.isAvailability())
+                        && Boolean.FALSE.equals(charger.isOccupied()))
+                .count();
+    }
+
+    // AC Chargers
+    public Long getACChargers() {
+        return chargerRepository.findAll().stream()
+                .filter(charger -> "AC".equalsIgnoreCase(charger.getChargerType()))
+                .count();
+    }
+
+    // DC Chargers
+    public Long getDCChargers() {
+        return chargerRepository.findAll().stream()
+                .filter(charger -> "DC".equalsIgnoreCase(charger.getChargerType()))
+                .count();
+    }
+}

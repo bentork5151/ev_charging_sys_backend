@@ -49,6 +49,16 @@ public class RevenueService {
         return BigDecimal.valueOf(total);
     }
 
+    // Pending Revenue (₹219)
+    public BigDecimal getPendingRevenue() {
+        double pending = revenueRepository.findAll().stream()
+                .filter(r -> "PENDING".equalsIgnoreCase(r.getPaymentStatus()))
+                .mapToDouble(Revenue::getAmount)
+                .sum();
+
+        return BigDecimal.valueOf(pending);
+    }
+
     public List<RevenueDTO> getAllRevenue() {
         return revenueRepository.findAll().stream()
                 .map(RevenueMapper::toDTO)
@@ -65,5 +75,26 @@ public class RevenueService {
         if (!revenueRepository.existsById(id))
             throw new RuntimeException("Revenue not found");
         revenueRepository.deleteById(id);
+    }
+
+    // Total Transactions
+    public Long getTotalTransactions() {
+        return revenueRepository.count();
+    }
+
+    // Success Rate
+    public Double getSuccessRate() {
+        long totalTransactions = revenueRepository.count();
+
+        if (totalTransactions == 0) {
+            return 0.0;
+        }
+
+        long successfulTransactions = revenueRepository.findAll().stream()
+                .filter(r -> "SUCCESS".equalsIgnoreCase(r.getPaymentStatus()))
+                .count();
+
+        double successRate = (successfulTransactions * 100.0) / totalTransactions;
+        return Math.round(successRate * 100.0) / 100.0; // Round to 2 decimals
     }
 }

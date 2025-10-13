@@ -1,9 +1,11 @@
 package com.bentork.ev_system.repository;
 
-import com.bentork.ev_system.model.Admin;
 import java.util.Optional;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
+
+import com.bentork.ev_system.model.Admin;
 
 @Repository
 public interface AdminRepository extends JpaRepository<Admin, Long> {
@@ -11,5 +13,6 @@ public interface AdminRepository extends JpaRepository<Admin, Long> {
     boolean existsByEmail(String email);
     Optional<Admin> findByEmail(String email);
 
+    long countAdminByRole(String role);
 }
 

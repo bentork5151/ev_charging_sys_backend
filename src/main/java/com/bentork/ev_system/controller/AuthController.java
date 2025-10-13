@@ -1,6 +1,26 @@
 package com.bentork.ev_system.controller;
 
 //import com.bentork.ev_system.dto.*;
+import java.util.Collections;
+import java.util.Optional;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.bentork.ev_system.config.JwtUtil;
 import com.bentork.ev_system.dto.request.AdminLoginRequest;
 import com.bentork.ev_system.dto.request.AdminSignupRequest;
 import com.bentork.ev_system.dto.request.JwtResponse;
@@ -13,20 +33,6 @@ import com.bentork.ev_system.repository.UserRepository;
 import com.bentork.ev_system.service.AdminNotificationService;
 import com.bentork.ev_system.service.OtpDeliveryService;
 import com.bentork.ev_system.service.OtpService;
-import com.bentork.ev_system.config.JwtUtil;
-
-import java.util.Collections;
-import java.util.Optional;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
-import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api")
@@ -104,6 +110,24 @@ public class AuthController {
         UserDetails userDetails = (UserDetails) authentication.getPrincipal();
         String token = jwtUtil.generateToken(userDetails);
         return ResponseEntity.ok(new JwtResponse(token));
+    }
+
+    // Total Admin - admin only
+    @GetMapping("/admin/all/total")
+    public ResponseEntity<Long> getAllAdmin(@RequestHeader("Authorization") String authHeader) {
+        return ResponseEntity.ok(adminRepo.count());
+    }
+
+    // Total Admin Only - admin only
+    @GetMapping("/admin/total")
+    public ResponseEntity<Long> getTotalAdmin(@RequestHeader("Authorization") String authHeader) {
+        return ResponseEntity.ok(adminRepo.countAdminByRole("ADMIN"));
+    }
+
+    // Total Dealer - admin only
+    @GetMapping("/dealer/total")
+    public ResponseEntity<Long> getTotalDealer(@RequestHeader("Authorization") String authHeader) {
+        return ResponseEntity.ok(adminRepo.countAdminByRole("DEALER"));
     }
 
     @PostMapping("/user/request-otp")

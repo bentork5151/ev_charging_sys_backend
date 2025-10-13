@@ -22,16 +22,15 @@ import com.bentork.ev_system.service.ChargerService;
 public class ChargerController {
 
     private final ChargerService chargerService;
-	
-	public ChargerController(ChargerService chargerService) {
+
+    public ChargerController(ChargerService chargerService) {
         this.chargerService = chargerService;
     }
 
-
-	@PostMapping("/add")
-	public ResponseEntity<String> createCharger(@RequestBody ChargerDTO dto) {
-	    return ResponseEntity.ok(chargerService.createCharger(dto));
-	}
+    @PostMapping("/add")
+    public ResponseEntity<String> createCharger(@RequestBody ChargerDTO dto) {
+        return ResponseEntity.ok(chargerService.createCharger(dto));
+    }
 
     @GetMapping("/all")
     public ResponseEntity<List<ChargerDTO>> getAllChargers() {
@@ -51,6 +50,30 @@ public class ChargerController {
     @DeleteMapping("/delete/{id}")
     public ResponseEntity<String> deleteCharger(@PathVariable Long id) {
         return ResponseEntity.ok(chargerService.deleteCharger(id));
+    }
+
+    // Total Chargers
+    @GetMapping("/total")
+    public ResponseEntity<Long> getTotalChargers() {
+        return ResponseEntity.ok(chargerService.getTotalChargers());
+    }
+
+    // Available Chargers
+    @GetMapping("/available")
+    public ResponseEntity<Long> getAvailableChargers() {
+        return ResponseEntity.ok(chargerService.getAvailableChargers());
+    }
+
+    // AC Chargers
+    @GetMapping("/ac")
+    public ResponseEntity<Long> getACChargers() {
+        return ResponseEntity.ok(chargerService.getACChargers());
+    }
+
+    // DC Chargers
+    @GetMapping("/dc")
+    public ResponseEntity<Long> getDCChargers() {
+        return ResponseEntity.ok(chargerService.getDCChargers());
     }
 
 }

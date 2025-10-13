@@ -62,4 +62,28 @@ public class RevenueController {
         return ResponseEntity.ok(revenueService.getTotalRevenue());
     }
 
+    // Pending Revenue
+    @GetMapping("/pending")
+    public ResponseEntity<BigDecimal> getPendingRevenue(
+            @RequestHeader("Authorization") String auth) {
+        ensureAdmin(auth);
+        return ResponseEntity.ok(revenueService.getPendingRevenue());
+    }
+
+    // Total Transactions
+    @GetMapping("/transactions/total")
+    public ResponseEntity<Long> getTotalTransactions(
+            @RequestHeader("Authorization") String auth) {
+        ensureAdmin(auth);
+        return ResponseEntity.ok(revenueService.getTotalTransactions());
+    }
+
+    // Success Rate
+    @GetMapping("/success-rate")
+    public ResponseEntity<Double> getSuccessRate(
+            @RequestHeader("Authorization") String auth) {
+        ensureAdmin(auth);
+        return ResponseEntity.ok(revenueService.getSuccessRate());
+    }
+
 }

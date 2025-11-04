@@ -15,6 +15,13 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
 
+import org.springframework.web.bind.annotation.GetMapping;
+
+import com.bentork.ev_system.service.LocationService;
+
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @RestController
 @RequestMapping("/api/location")
 @PreAuthorize("hasAuthority('ADMIN')")
@@ -25,6 +32,9 @@ public class LocationController {
 
     @Autowired
     private AdminRepository adminRepository;
+
+    @Autowired
+    private LocationService locationService;
 
     // ✅ Add location
     @PostMapping("/add")
@@ -37,9 +47,8 @@ public class LocationController {
 
         Location location = LocationMapper.toEntity(dto, admin.get());
         locationRepository.save(location);
-        return ResponseEntity.ok(Collections.singletonMap("message", "Location Added"));
+        return ResponseEntity.ok(location);
     }
-
 
     // ✅ Get all locations
     @GetMapping("/all")
@@ -53,7 +62,6 @@ public class LocationController {
         }
     }
 
-
     // ✅ Get location by ID
     @GetMapping("/{id}")
     public ResponseEntity<?> getLocationById(@PathVariable Long id) {
@@ -65,7 +73,6 @@ public class LocationController {
             return ResponseEntity.status(404).body(Collections.singletonMap("error", "Location not found"));
         }
     }
-
 
     // ✅ Update location
     @PutMapping("/update/{id}")
@@ -86,7 +93,6 @@ public class LocationController {
         return ResponseEntity.ok(Collections.singletonMap("message", "Location Updated"));
     }
 
-
     // ✅ Delete location
     @DeleteMapping("/delete/{id}")
     public ResponseEntity<?> deleteLocation(@PathVariable Long id) {
@@ -97,4 +103,17 @@ public class LocationController {
             return ResponseEntity.status(404).body(Collections.singletonMap("error", "Location not found"));
         }
     }
+
+    @GetMapping("/all/name")
+    public ResponseEntity<?> getAllLocationNames() {
+        try {
+            log.info("Calling Location service to get all location name and id.");
+            List<Map<String, Object>> location = locationService.getAllLocationNames();
+            return ResponseEntity.ok(location);
+        } catch (Exception e) {
+            log.error("Fail to get location name and id: {}", e);
+            return ResponseEntity.internalServerError().body("Error Fetching location info");
+        }
+    }
+
 }

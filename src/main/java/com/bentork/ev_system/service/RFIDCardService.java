@@ -12,16 +12,25 @@ import com.bentork.ev_system.model.User;
 import com.bentork.ev_system.repository.RFIDCardRepository;
 import com.bentork.ev_system.repository.UserRepository;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @Service
 public class RFIDCardService {
 
     @Autowired
     private RFIDCardRepository cardRepo;
+
     @Autowired
     private UserRepository userRepo;
 
+    @Autowired
+    private SteveDatabaseService steveDatabaseService;
+
     // Register new RFID card
     public RFIDCard registerCard(RFIDCardRequest req) {
+        log.info("Registering new RFID card: {}", req.getCardNumber());
+
         User user = userRepo.findById(req.getUserId())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
@@ -30,7 +39,18 @@ public class RFIDCardService {
         card.setUser(user);
         card.setActive(true);
 
-        return cardRepo.save(card);
+        RFIDCard savedCard = cardRepo.save(card);
+        log.info("Card saved in our database: {}", savedCard.getCardNumber());
+
+        boolean pushedToSteve = steveDatabaseService.addOcppTag(savedCard.getCardNumber(), user);
+        if (!pushedToSteve) {
+            log.error("CRITICAL: Failed to register card {} in SteVe! User won't be able to charge! Deleting Credentials from our database", savedCard.getCardNumber());
+
+            deleteCard(savedCard.getId());
+            log.error("Delete successfull card number: {}", savedCard.getCardNumber());
+        }
+
+        return savedCard;
     }
 
     // Get all cards
@@ -46,14 +66,37 @@ public class RFIDCardService {
 
     // Update card status (activate/deactivate)
     public RFIDCard updateCardStatus(Long id, boolean active) {
-        RFIDCard card = getCard(id);
+        log.info("Updating card {} status to: {}", id, active ? "ACTIVE" : "BLOCKED");
+
+        RFIDCard card = cardRepo.findById(id)
+                .orElseThrow(() -> new RuntimeException("Card not found"));
+
         card.setActive(active);
-        return cardRepo.save(card);
+        RFIDCard updated = cardRepo.save(card);
+
+        log.info("Card {} updated", card.getCardNumber());
+
+        // boolean updatedInSteve = ocppTagSyncService.updateCardInSteve(card.getCardNumber(), !active);
+        // if (!updatedInSteve) {
+        //     log.error("CRITICAL: Failed to update card {} status in SteVe!", card.getCardNumber());
+        // }
+        return updated;
     }
 
     // Delete card
     public void deleteCard(Long id) {
-        cardRepo.deleteById(id);
+        log.info("Deleting card {}", id);
+
+        RFIDCard card = cardRepo.findById(id)
+                .orElseThrow(() -> new RuntimeException("Card not found"));
+
+        cardRepo.delete(card);
+        log.info("Card {} deleted from our database", card.getCardNumber());
+
+        // boolean blockedInSteve = ocppTagSyncService.updateCardInSteve(card.getCardNumber(), true);
+        // if (!blockedInSteve) {
+        //     log.warn("Could not block card {} in SteVe", card.getCardNumber());
+        // }
     }
 
     // Total Cards
@@ -81,7 +124,7 @@ public class RFIDCardService {
 
         return cardRepo.findAll().stream()
                 .filter(card -> card.getCreatedAt() != null
-                        && card.getCreatedAt().isAfter(sevenDaysAgo))
+                && card.getCreatedAt().isAfter(sevenDaysAgo))
                 .count();
     }
 }

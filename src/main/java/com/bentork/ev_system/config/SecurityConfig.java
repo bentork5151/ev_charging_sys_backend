@@ -51,7 +51,7 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
-                // .cors(cors -> {}) // ✅ Enable CORS support
+                .cors(cors -> {}) // ✅ Enable CORS support
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(jwtAuthenticationEntryPoint) // ✅ Use custom entry point
                 )

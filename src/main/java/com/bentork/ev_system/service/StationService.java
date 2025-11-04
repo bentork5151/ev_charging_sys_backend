@@ -1,22 +1,29 @@
 package com.bentork.ev_system.service;
 
+import java.time.Clock;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 
 import com.bentork.ev_system.dto.request.StationDTO;
 import com.bentork.ev_system.mapper.StationMapper;
 import com.bentork.ev_system.model.Charger;
 import com.bentork.ev_system.model.Location;
+import com.bentork.ev_system.model.Session;
 import com.bentork.ev_system.model.Station;
 import com.bentork.ev_system.repository.ChargerRepository;
 import com.bentork.ev_system.repository.LocationRepository;
 import com.bentork.ev_system.repository.StationRepository;
 
 import jakarta.persistence.EntityNotFoundException;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Service
 public class StationService {
 
@@ -28,6 +35,9 @@ public class StationService {
 
     @Autowired
     private ChargerRepository chargerRepository;
+
+    @Autowired
+    private Clock clock;
 
     public StationDTO createStation(StationDTO dto) {
         Location location = locationRepository.findById(dto.getLocationId())
@@ -114,5 +124,33 @@ public class StationService {
 
         double avgUptime = stationCount > 0 ? totalUptime / stationCount : 0.0;
         return Math.round(avgUptime * 100.0) / 100.0; // Round to 2 decimals
+    }
+
+    //Error Today
+    public Long getTodaysErrorCount(){
+        try {
+            LocalDate today = LocalDate.now(clock);
+            LocalDateTime startOfDay = today.atStartOfDay();
+            LocalDateTime endOfDay = today.atTime(23, 59, 59, 999999999);
+
+            log.debug("Getting all station to count todays errors");
+            List<Station> allStations = stationRepository.findAll();
+
+            return allStations.stream()
+                    .filter(station -> station.getCreatedAt() != null
+                    && (station.getCreatedAt().isEqual(startOfDay)
+                    || (station.getCreatedAt().isAfter(startOfDay)
+                    && station.getCreatedAt().isBefore(endOfDay))))
+                    .filter(station -> station.getStatus() != null
+                    && station.getStatus().toLowerCase().contains("error"))
+                    .count();
+
+        } catch (DataAccessException e) {
+            log.error("Error while accessing data: {}", e);
+            throw e;
+        } catch (Exception e) {
+            log.error("Unexpected error in getTodaysErrorCount ", e);
+            throw new RuntimeException("Failed to calculate today's error count", e);
+        }
     }
 }

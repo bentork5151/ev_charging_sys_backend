@@ -14,6 +14,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -61,6 +62,7 @@ public class SessionService {
 		session.setStatus("active");
 		session.setCreatedAt(LocalDateTime.now());
 		sessionRepository.save(session);
+		session.setSourceType("SESSION");
 
 		receipt.setSession(session);
 		receiptRepository.save(receipt);
@@ -290,4 +292,19 @@ public class SessionService {
 		double uptime = (completedSessions * 100.0) / totalSessions;
 		return Math.round(uptime * 100.0) / 100.0; // Round to 2 decimals
 	}
+
+	/**
+	 * Get session by ID (used by OCPP WebSocket)
+	 */
+	public Session getSessionById(Long sessionId) {
+		return sessionRepository.findById(sessionId).orElse(null);
+	}
+
+	/**
+	 * Find any active session (fallback for OCPP)
+	 */
+	public Optional<Session> findLastActiveSession() {
+		return sessionRepository.findFirstByStatusOrderByStartTimeDesc("active");
+	}
+
 }

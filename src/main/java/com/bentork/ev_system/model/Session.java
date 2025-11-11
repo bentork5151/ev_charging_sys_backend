@@ -17,7 +17,7 @@ public class Session {
     private User user;
 
     @ManyToOne
-    @JoinColumn(name = "charger_id")
+    @JoinColumn(name = "charger_id", nullable = false)
     private Charger charger;
 
     private String boxId;
@@ -28,6 +28,8 @@ public class Session {
     private String status;
     private double cost;
     private LocalDateTime createdAt;
+    @Column(name = "source_type")
+    private String sourceType; // values: "RFID" or "SESSION"
 
     // Getters and Setters
 
@@ -110,4 +112,13 @@ public class Session {
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
     }
+
+    public String getSourceType() {
+        return sourceType;
+    }
+
+    public void setSourceType(String sourceType) {
+        this.sourceType = sourceType;
+    }
+
 }

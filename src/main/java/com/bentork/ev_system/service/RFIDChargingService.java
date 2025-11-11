@@ -56,12 +56,13 @@ public class RFIDChargingService {
         Session session = new Session();
         session.setUser(user);
         session.setCharger(charger);
-        session.setStatus("IN_PROGRESS");
+        session.setStatus("active");
         session.setStartTime(LocalDateTime.now());
         session.setEnergyKwh(0.0);
         session.setCost(0.0);
         session.setCreatedAt(LocalDateTime.now());
         session.setBoxId(boxId);
+        session.setSourceType("RFID");
 
         Session saved = sessionRepo.save(session);
 
@@ -79,7 +80,7 @@ public class RFIDChargingService {
         Session session = sessionRepo.findById(sessionId)
                 .orElseThrow(() -> new RuntimeException("Session not found"));
 
-        if (!"IN_PROGRESS".equals(session.getStatus()))
+        if (!"active".equals(session.getStatus()))
             return session;
 
         BigDecimal previous = BigDecimal.valueOf(session.getEnergyKwh());
@@ -119,7 +120,7 @@ public class RFIDChargingService {
         Session session = sessionRepo.findById(sessionId)
                 .orElseThrow(() -> new RuntimeException("Session not found"));
 
-        if (!"IN_PROGRESS".equals(session.getStatus()))
+        if (!"active".equals(session.getStatus()))
             return session;
 
         session.setStatus("COMPLETED");
@@ -159,6 +160,29 @@ public class RFIDChargingService {
                 "SESSION_END");
 
         return saved;
+    }
+
+    public boolean validateRFIDCard(String cardNumber) {
+        if (cardNumber == null || cardNumber.isEmpty()) {
+            return false;
+        }
+
+        try {
+            RFIDCard card = cardRepo.findByCardNumber(cardNumber).orElse(null);
+            if (card == null)
+                return false;
+            if (!card.isActive())
+                return false;
+
+            User user = card.getUser();
+            if (user.getWalletBalance().compareTo(BigDecimal.ONE) < 0) {
+                return false;
+            }
+
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
 }

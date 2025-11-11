@@ -3,6 +3,7 @@ package com.bentork.ev_system.controller;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -16,63 +17,147 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.bentork.ev_system.dto.request.StationDTO;
-
 import com.bentork.ev_system.service.StationService;
+
+import jakarta.persistence.EntityNotFoundException;
+import lombok.extern.slf4j.Slf4j;
 
 @PreAuthorize("hasAuthority('ADMIN')")
 @RestController
 @RequestMapping("/api/stations")
+@Slf4j
 public class StationController {
 
     @Autowired
     private StationService stationService;
 
-    // @PreAuthorize("hasAuthority('ADMIN')")
     @PostMapping("/add")
     public ResponseEntity<String> createStation(@RequestBody StationDTO dto) {
-        stationService.createStation(dto);
-        return ResponseEntity.ok("Station Created");
+        log.info("POST /api/stations/add - Creating station, name={}, locationId={}",
+                dto.getName(), dto.getLocationId());
+
+        try {
+            StationDTO created = stationService.createStation(dto);
+            log.info("POST /api/stations/add - Success, stationId={}", created.getId());
+            return ResponseEntity.status(HttpStatus.CREATED).body("Station Created");
+        } catch (EntityNotFoundException e) {
+            log.error("POST /api/stations/add - Location not found: locationId={}",
+                    dto.getLocationId());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        } catch (Exception e) {
+            log.error("POST /api/stations/add - Failed: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Failed to create station");
+        }
     }
 
     @GetMapping("/all")
     public ResponseEntity<List<StationDTO>> getAllStations() {
-        return ResponseEntity.ok(stationService.getAllStations());
+        log.info("GET /api/stations/all - Request received");
+
+        try {
+            List<StationDTO> stations = stationService.getAllStations();
+            log.info("GET /api/stations/all - Success, returned {} stations", stations.size());
+            return ResponseEntity.ok(stations);
+        } catch (Exception e) {
+            log.error("GET /api/stations/all - Failed: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<StationDTO> getStationById(@PathVariable Long id) {
-        return ResponseEntity.ok(stationService.getStationById(id));
+        log.info("GET /api/stations/{} - Request received", id);
+
+        try {
+            StationDTO station = stationService.getStationById(id);
+            log.info("GET /api/stations/{} - Success, name={}", id, station.getName());
+            return ResponseEntity.ok(station);
+        } catch (EntityNotFoundException e) {
+            log.warn("GET /api/stations/{} - Station not found", id);
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            log.error("GET /api/stations/{} - Failed: {}", id, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 
-    // @PreAuthorize("hasAuthority('ADMIN')")
     @PutMapping("/update/{id}")
     public ResponseEntity<String> updateStation(@PathVariable Long id, @RequestBody StationDTO dto) {
-        stationService.updateStation(id, dto);
-        return ResponseEntity.ok("Station Updated");
+        log.info("PUT /api/stations/update/{} - Updating station, name={}, status={}",
+                id, dto.getName(), dto.getStatus());
+
+        try {
+            stationService.updateStation(id, dto);
+            log.info("PUT /api/stations/update/{} - Success", id);
+            return ResponseEntity.ok("Station Updated");
+        } catch (EntityNotFoundException e) {
+            log.warn("PUT /api/stations/update/{} - Not found: {}", id, e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        } catch (Exception e) {
+            log.error("PUT /api/stations/update/{} - Failed: {}", id, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Failed to update station");
+        }
     }
 
-    // @PreAuthorize("hasAuthority('ADMIN')")
     @DeleteMapping("/delete/{id}")
     public ResponseEntity<String> deleteStation(@PathVariable Long id) {
-        stationService.deleteStation(id);
-        return ResponseEntity.ok("Station Deleted");
+        log.info("DELETE /api/stations/delete/{} - Request received", id);
+
+        try {
+            stationService.deleteStation(id);
+            log.info("DELETE /api/stations/delete/{} - Success", id);
+            return ResponseEntity.ok("Station Deleted");
+        } catch (EntityNotFoundException e) {
+            log.warn("DELETE /api/stations/delete/{} - Station not found", id);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        } catch (Exception e) {
+            log.error("DELETE /api/stations/delete/{} - Failed: {}", id, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Failed to delete station");
+        }
     }
 
-    // Total Stations
     @GetMapping("/total")
     public ResponseEntity<Long> getTotalStations(@RequestHeader("Authorization") String authHeader) {
-        return ResponseEntity.ok(stationService.getTotalStations());
+        log.info("GET /api/stations/total - Request received");
+
+        try {
+            Long total = stationService.getTotalStations();
+            log.info("GET /api/stations/total - Success, total={}", total);
+            return ResponseEntity.ok(total);
+        } catch (Exception e) {
+            log.error("GET /api/stations/total - Failed: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 
-    // Active Stations
     @GetMapping("/active")
     public ResponseEntity<Long> getActiveStations(@RequestHeader("Authorization") String authHeader) {
-        return ResponseEntity.ok(stationService.getActiveStations());
+        log.info("GET /api/stations/active - Request received");
+
+        try {
+            Long active = stationService.getActiveStations();
+            log.info("GET /api/stations/active - Success, active={}", active);
+            return ResponseEntity.ok(active);
+        } catch (Exception e) {
+            log.error("GET /api/stations/active - Failed: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 
-    // Average Uptime
     @GetMapping("/uptime")
     public ResponseEntity<Double> getAverageUptime(@RequestHeader("Authorization") String authHeader) {
-        return ResponseEntity.ok(stationService.getAverageUptime());
+        log.info("GET /api/stations/uptime - Request received");
+
+        try {
+            Double uptime = stationService.getAverageUptime();
+            log.info("GET /api/stations/uptime - Success, uptime={}%", uptime);
+            return ResponseEntity.ok(uptime);
+        } catch (Exception e) {
+            log.error("GET /api/stations/uptime - Failed: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 }

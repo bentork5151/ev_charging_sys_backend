@@ -16,8 +16,10 @@ import com.bentork.ev_system.repository.LocationRepository;
 import com.bentork.ev_system.repository.StationRepository;
 
 import jakarta.persistence.EntityNotFoundException;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
+@Slf4j
 public class StationService {
 
     @Autowired
@@ -30,89 +32,180 @@ public class StationService {
     private ChargerRepository chargerRepository;
 
     public StationDTO createStation(StationDTO dto) {
-        Location location = locationRepository.findById(dto.getLocationId())
-                .orElseThrow(() -> new EntityNotFoundException("Location not found"));
+        try {
+            Location location = locationRepository.findById(dto.getLocationId())
+                    .orElseThrow(() -> new EntityNotFoundException("Location not found"));
 
-        Station station = StationMapper.toEntity(dto);
-        station.setLocation(location);
+            Station station = StationMapper.toEntity(dto);
+            station.setLocation(location);
 
-        Station saved = stationRepository.save(station);
-        return StationMapper.toDTO(saved);
+            Station saved = stationRepository.save(station);
+            log.info("Station created: id={}, name={}, locationId={}",
+                    saved.getId(), saved.getName(), location.getId());
+
+            return StationMapper.toDTO(saved);
+        } catch (EntityNotFoundException e) {
+            log.error("Failed to create station - Location not found: locationId={}",
+                    dto.getLocationId());
+            throw e;
+        } catch (Exception e) {
+            log.error("Failed to create station: name={}, locationId={}: {}",
+                    dto.getName(), dto.getLocationId(), e.getMessage(), e);
+            throw e;
+        }
     }
 
     public List<StationDTO> getAllStations() {
-        return stationRepository.findAll().stream()
-                .map(StationMapper::toDTO)
-                .collect(Collectors.toList());
+        try {
+            List<StationDTO> stations = stationRepository.findAll().stream()
+                    .map(StationMapper::toDTO)
+                    .collect(Collectors.toList());
+
+            if (log.isDebugEnabled()) {
+                log.debug("Retrieved {} stations", stations.size());
+            }
+
+            return stations;
+        } catch (Exception e) {
+            log.error("Failed to retrieve all stations: {}", e.getMessage(), e);
+            throw e;
+        }
     }
 
     public StationDTO getStationById(Long id) {
-        Station station = stationRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Station not found with ID: " + id));
-        return StationMapper.toDTO(station);
+        try {
+            Station station = stationRepository.findById(id)
+                    .orElseThrow(() -> new EntityNotFoundException("Station not found with ID: " + id));
+
+            if (log.isDebugEnabled()) {
+                log.debug("Retrieved station: id={}, name={}", id, station.getName());
+            }
+
+            return StationMapper.toDTO(station);
+        } catch (EntityNotFoundException e) {
+            log.warn("Station not found: id={}", id);
+            throw e;
+        } catch (Exception e) {
+            log.error("Failed to retrieve station: id={}: {}", id, e.getMessage(), e);
+            throw e;
+        }
     }
 
     public StationDTO updateStation(Long id, StationDTO dto) {
-        Station station = stationRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Station not found with ID: " + id));
+        try {
+            Station station = stationRepository.findById(id)
+                    .orElseThrow(() -> new EntityNotFoundException("Station not found with ID: " + id));
 
-        Location location = locationRepository.findById(dto.getLocationId())
-                .orElseThrow(() -> new EntityNotFoundException("Location not found"));
+            Location location = locationRepository.findById(dto.getLocationId())
+                    .orElseThrow(() -> new EntityNotFoundException("Location not found"));
 
-        station.setName(dto.getName());
-        station.setLocation(location);
-        station.setStatus(dto.getStatus());
-        station.setDirectionLink(dto.getDirectionLink());
+            String oldStatus = station.getStatus();
 
-        Station updated = stationRepository.save(station);
-        return StationMapper.toDTO(updated);
+            station.setName(dto.getName());
+            station.setLocation(location);
+            station.setStatus(dto.getStatus());
+            station.setDirectionLink(dto.getDirectionLink());
+
+            Station updated = stationRepository.save(station);
+
+            log.info("Station updated: id={}, name={}, status changed from {} to {}",
+                    id, updated.getName(), oldStatus, updated.getStatus());
+
+            return StationMapper.toDTO(updated);
+        } catch (EntityNotFoundException e) {
+            log.warn("Failed to update station - Entity not found: stationId={}, message={}",
+                    id, e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error("Failed to update station: id={}: {}", id, e.getMessage(), e);
+            throw e;
+        }
     }
 
     public void deleteStation(Long id) {
-        if (!stationRepository.existsById(id)) {
-            throw new EntityNotFoundException("Station not found with ID: " + id);
-        }
-        stationRepository.deleteById(id);
-    }
-
-    // Total Stations
-    public Long getTotalStations() {
-        return stationRepository.count();
-    }
-
-    // Active Stations
-    public Long getActiveStations() {
-        return stationRepository.findAll().stream()
-                .filter(station -> "ACTIVE".equalsIgnoreCase(station.getStatus()))
-                .count();
-    }
-
-    // Average Uptime (76%)
-    public Double getAverageUptime() {
-        List<Station> stations = stationRepository.findAll();
-
-        if (stations.isEmpty()) {
-            return 0.0;
-        }
-
-        double totalUptime = 0.0;
-        int stationCount = 0;
-
-        for (Station station : stations) {
-            List<Charger> chargers = chargerRepository.findByStationId(station.getId());
-
-            if (!chargers.isEmpty()) {
-                long availableChargers = chargers.stream()
-                        .filter(charger -> Boolean.TRUE.equals(charger.isAvailability()))
-                        .count();
-
-                double stationUptime = (availableChargers * 100.0) / chargers.size();
-                totalUptime += stationUptime;
-                stationCount++;
+        try {
+            if (!stationRepository.existsById(id)) {
+                throw new EntityNotFoundException("Station not found with ID: " + id);
             }
+            stationRepository.deleteById(id);
+            log.info("Station deleted: id={}", id);
+        } catch (EntityNotFoundException e) {
+            log.warn("Failed to delete station - Station not found: id={}", id);
+            throw e;
+        } catch (Exception e) {
+            log.error("Failed to delete station: id={}: {}", id, e.getMessage(), e);
+            throw e;
         }
+    }
 
-        double avgUptime = stationCount > 0 ? totalUptime / stationCount : 0.0;
-        return Math.round(avgUptime * 100.0) / 100.0; // Round to 2 decimals
+    public Long getTotalStations() {
+        try {
+            Long total = stationRepository.count();
+
+            if (log.isDebugEnabled()) {
+                log.debug("Total stations count: {}", total);
+            }
+
+            return total;
+        } catch (Exception e) {
+            log.error("Failed to get total stations count: {}", e.getMessage(), e);
+            throw e;
+        }
+    }
+
+    public Long getActiveStations() {
+        try {
+            Long activeCount = stationRepository.findAll().stream()
+                    .filter(station -> "ACTIVE".equalsIgnoreCase(station.getStatus()))
+                    .count();
+
+            if (log.isDebugEnabled()) {
+                log.debug("Active stations count: {}", activeCount);
+            }
+
+            return activeCount;
+        } catch (Exception e) {
+            log.error("Failed to get active stations count: {}", e.getMessage(), e);
+            throw e;
+        }
+    }
+
+    public Double getAverageUptime() {
+        try {
+            List<Station> stations = stationRepository.findAll();
+
+            if (stations.isEmpty()) {
+                log.warn("No stations found for uptime calculation");
+                return 0.0;
+            }
+
+            double totalUptime = 0.0;
+            int stationCount = 0;
+
+            for (Station station : stations) {
+                List<Charger> chargers = chargerRepository.findByStationId(station.getId());
+
+                if (!chargers.isEmpty()) {
+                    long availableChargers = chargers.stream()
+                            .filter(charger -> Boolean.TRUE.equals(charger.isAvailability()))
+                            .count();
+
+                    double stationUptime = (availableChargers * 100.0) / chargers.size();
+                    totalUptime += stationUptime;
+                    stationCount++;
+                }
+            }
+
+            double avgUptime = stationCount > 0 ? totalUptime / stationCount : 0.0;
+            double roundedUptime = Math.round(avgUptime * 100.0) / 100.0;
+
+            log.info("Average uptime calculated: {}% across {} stations",
+                    roundedUptime, stationCount);
+
+            return roundedUptime;
+        } catch (Exception e) {
+            log.error("Failed to calculate average uptime: {}", e.getMessage(), e);
+            throw e;
+        }
     }
 }

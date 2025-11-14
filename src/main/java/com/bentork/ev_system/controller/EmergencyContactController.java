@@ -2,12 +2,15 @@ package com.bentork.ev_system.controller;
 
 import com.bentork.ev_system.dto.request.EmergencyContactDTO;
 import com.bentork.ev_system.service.EmergencyContactService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/emergency-contacts")
 public class EmergencyContactController {
@@ -17,34 +20,91 @@ public class EmergencyContactController {
 
     @PostMapping("/add")
     public ResponseEntity<String> create(@RequestBody EmergencyContactDTO dto) {
-        contactService.createEmergencyContact(dto);
-        return ResponseEntity.ok("Contact Created");
+        log.info("POST /api/emergency-contacts/add - Creating emergency contact, name={}, stationId={}",
+                dto.getName(), dto.getStationId());
+
+        try {
+            contactService.createEmergencyContact(dto);
+            log.info("POST /api/emergency-contacts/add - Success, name={}", dto.getName());
+            return ResponseEntity.status(HttpStatus.CREATED).body("Contact Created");
+        } catch (RuntimeException e) {
+            if (e.getMessage().contains("Station not found")) {
+                log.error("POST /api/emergency-contacts/add - Station not found: stationId={}",
+                        dto.getStationId());
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+            }
+            log.error("POST /api/emergency-contacts/add - Failed: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Failed to create contact");
+        }
     }
 
     @GetMapping("/all")
     public ResponseEntity<List<EmergencyContactDTO>> getAll() {
-        return ResponseEntity.ok(contactService.getAllContacts());
+        log.info("GET /api/emergency-contacts/all - Request received");
+
+        try {
+            List<EmergencyContactDTO> contacts = contactService.getAllContacts();
+            log.info("GET /api/emergency-contacts/all - Success, returned {} contacts", contacts.size());
+            return ResponseEntity.ok(contacts);
+        } catch (Exception e) {
+            log.error("GET /api/emergency-contacts/all - Failed: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<?> getById(@PathVariable Long id) {
+        log.info("GET /api/emergency-contacts/{} - Request received", id);
+
         try {
             EmergencyContactDTO dto = contactService.getEmergencyContactById(id);
+            log.info("GET /api/emergency-contacts/{} - Success, name={}", id, dto.getName());
             return ResponseEntity.ok(dto);
         } catch (RuntimeException e) {
-            return ResponseEntity.status(404).body(e.getMessage());
+            log.warn("GET /api/emergency-contacts/{} - Contact not found", id);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        } catch (Exception e) {
+            log.error("GET /api/emergency-contacts/{} - Failed: {}", id, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Failed to fetch contact");
         }
     }
 
     @PutMapping("/update/{id}")
     public ResponseEntity<String> update(@PathVariable Long id, @RequestBody EmergencyContactDTO dto) {
-        contactService.updateContact(id, dto);
-        return ResponseEntity.ok("Contact Updated");
+        log.info("PUT /api/emergency-contacts/update/{} - Updating contact, name={}", id, dto.getName());
+
+        try {
+            contactService.updateContact(id, dto);
+            log.info("PUT /api/emergency-contacts/update/{} - Success", id);
+            return ResponseEntity.ok("Contact Updated");
+        } catch (RuntimeException e) {
+            if (e.getMessage().contains("not found")) {
+                log.warn("PUT /api/emergency-contacts/update/{} - Not found: {}", id, e.getMessage());
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+            }
+            log.error("PUT /api/emergency-contacts/update/{} - Failed: {}", id, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Failed to update contact");
+        }
     }
 
     @DeleteMapping("/delete/{id}")
     public ResponseEntity<String> delete(@PathVariable Long id) {
-        contactService.deleteContact(id);
-        return ResponseEntity.ok("Contact Deleted");
+        log.info("DELETE /api/emergency-contacts/delete/{} - Request received", id);
+
+        try {
+            contactService.deleteContact(id);
+            log.info("DELETE /api/emergency-contacts/delete/{} - Success", id);
+            return ResponseEntity.ok("Contact Deleted");
+        } catch (RuntimeException e) {
+            log.warn("DELETE /api/emergency-contacts/delete/{} - Contact not found", id);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        } catch (Exception e) {
+            log.error("DELETE /api/emergency-contacts/delete/{} - Failed: {}", id, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Failed to delete contact");
+        }
     }
 }

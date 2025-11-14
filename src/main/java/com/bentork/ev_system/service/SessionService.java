@@ -5,6 +5,7 @@ import com.bentork.ev_system.model.Receipt;
 import com.bentork.ev_system.model.Session;
 import com.bentork.ev_system.repository.ReceiptRepository;
 import com.bentork.ev_system.repository.SessionRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -19,6 +20,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+@Slf4j
 @Service
 public class SessionService {
 
@@ -50,74 +52,115 @@ public class SessionService {
 	 * Auto-stop logic applies for both plan and selected kWh sessions.
 	 */
 	public Session startSessionFromReceipt(Receipt receipt, String boxId) {
-		if (!"PAID".equalsIgnoreCase(receipt.getStatus())) {
-			throw new RuntimeException("Cannot start session without a paid receipt.");
+		try {
+			log.info("Starting session from receipt: receiptId={}, userId={}, chargerId={}",
+					receipt.getId(), receipt.getUser().getId(), receipt.getCharger().getId());
+
+			if (!"PAID".equalsIgnoreCase(receipt.getStatus())) {
+				log.warn("Cannot start session - Receipt not paid: receiptId={}, status={}",
+						receipt.getId(), receipt.getStatus());
+				throw new RuntimeException("Cannot start session without a paid receipt.");
+			}
+
+			Session session = new Session();
+			session.setUser(receipt.getUser());
+			session.setCharger(receipt.getCharger());
+			session.setBoxId(boxId);
+			session.setStartTime(LocalDateTime.now());
+			session.setStatus("active");
+			session.setCreatedAt(LocalDateTime.now());
+			sessionRepository.save(session);
+			session.setSourceType("SESSION");
+
+			receipt.setSession(session);
+			receiptRepository.save(receipt);
+
+			// Auto-stop scheduling
+			if (receipt.getPlan() != null) {
+				// Stop after plan duration
+				int durationMin = receipt.getPlan().getDurationMin();
+				log.info("Scheduling auto-stop for plan session: sessionId={}, durationMin={}",
+						session.getId(), durationMin);
+				scheduleAutoStop(session.getId(), durationMin);
+			} else if (receipt.getSelectedKwh() != null) {
+				// Approximation: minutes required = selectedKwh / 0.075
+				double minutesRequired = receipt.getSelectedKwh().doubleValue() / 0.075;
+				log.info("Scheduling auto-stop for kWh session: sessionId={}, selectedKwh={}, estimatedMinutes={}",
+						session.getId(), receipt.getSelectedKwh(), minutesRequired);
+				scheduleAutoStop(session.getId(), (int) Math.ceil(minutesRequired));
+			}
+
+			log.info("Session started successfully: sessionId={}, userId={}, chargerId={}, boxId={}",
+					session.getId(), session.getUser().getId(), session.getCharger().getId(), boxId);
+
+			adminNotificationService.createSystemNotification(
+					"User '" + session.getUser().getName() + "' started a session on charger '" +
+							session.getCharger().getOcppId() + "'",
+					"SESSION_STARTED");
+
+			userNotificationService.createNotification(
+					session.getUser().getId(),
+					"Charging Started",
+					"Your charging session has started successfully.",
+					"INFO");
+
+			return session;
+		} catch (Exception e) {
+			log.error("Failed to start session from receipt: receiptId={}: {}",
+					receipt.getId(), e.getMessage(), e);
+			throw e;
 		}
-
-		Session session = new Session();
-		session.setUser(receipt.getUser());
-		session.setCharger(receipt.getCharger());
-		session.setBoxId(boxId);
-		session.setStartTime(LocalDateTime.now());
-		session.setStatus("active");
-		session.setCreatedAt(LocalDateTime.now());
-		sessionRepository.save(session);
-		session.setSourceType("SESSION");
-
-		receipt.setSession(session);
-		receiptRepository.save(receipt);
-
-		// Auto-stop scheduling
-		if (receipt.getPlan() != null) {
-			// Stop after plan duration
-			scheduleAutoStop(session.getId(), receipt.getPlan().getDurationMin());
-		} else if (receipt.getSelectedKwh() != null) {
-			// Approximation: minutes required = selectedKwh / 0.075
-			double minutesRequired = receipt.getSelectedKwh().doubleValue() / 0.075;
-			scheduleAutoStop(session.getId(), (int) Math.ceil(minutesRequired));
-		}
-
-		adminNotificationService.createSystemNotification(
-				"User '" + session.getUser().getName() + "' started a session on charger '" +
-						session.getCharger().getOcppId() + "'",
-				"SESSION_STARTED");
-
-		userNotificationService.createNotification(
-				session.getUser().getId(),
-				"Charging Started",
-				"Your charging session has started successfully.",
-				"INFO");
-
-		return session;
 	}
 
 	/**
 	 * Manual stop (by user).
 	 */
 	public Map<String, Object> stopSession(Long userId, SessionDTO request) {
-		Session session = sessionRepository.findById(request.getSessionId())
-				.orElseThrow(() -> new RuntimeException("Session not found"));
+		try {
+			log.info("Manual stop requested: sessionId={}, userId={}", request.getSessionId(), userId);
 
-		if (!session.getUser().getId().equals(userId)) {
-			throw new RuntimeException("Unauthorized to stop this session");
+			Session session = sessionRepository.findById(request.getSessionId())
+					.orElseThrow(() -> new RuntimeException("Session not found"));
+
+			if (!session.getUser().getId().equals(userId)) {
+				log.warn("Unauthorized stop attempt: sessionId={}, requestedBy={}, owner={}",
+						request.getSessionId(), userId, session.getUser().getId());
+				throw new RuntimeException("Unauthorized to stop this session");
+			}
+
+			if (!"active".equalsIgnoreCase(session.getStatus())) {
+				log.info("Session already completed: sessionId={}, status={}",
+						request.getSessionId(), session.getStatus());
+				return buildAlreadyCompletedResponse(session);
+			}
+
+			return finalizeSession(session, "MANUAL_STOP");
+		} catch (Exception e) {
+			log.error("Failed to stop session: sessionId={}, userId={}: {}",
+					request.getSessionId(), userId, e.getMessage(), e);
+			throw e;
 		}
-
-		if (!"active".equalsIgnoreCase(session.getStatus())) {
-			return buildAlreadyCompletedResponse(session);
-		}
-
-		return finalizeSession(session, "MANUAL_STOP");
 	}
 
 	/**
 	 * Auto-stop (triggered by scheduler).
 	 */
 	public void stopSessionBySystem(Long sessionId) {
-		Session session = sessionRepository.findById(sessionId)
-				.orElseThrow(() -> new RuntimeException("Session not found"));
+		try {
+			log.info("Auto-stop triggered by system: sessionId={}", sessionId);
 
-		if ("active".equalsIgnoreCase(session.getStatus())) {
-			finalizeSession(session, "AUTO_STOP");
+			Session session = sessionRepository.findById(sessionId)
+					.orElseThrow(() -> new RuntimeException("Session not found"));
+
+			if ("active".equalsIgnoreCase(session.getStatus())) {
+				finalizeSession(session, "AUTO_STOP");
+			} else {
+				log.info("Session already inactive, skipping auto-stop: sessionId={}, status={}",
+						sessionId, session.getStatus());
+			}
+		} catch (Exception e) {
+			log.error("Failed to auto-stop session: sessionId={}: {}", sessionId, e.getMessage(), e);
+			throw e;
 		}
 	}
 
@@ -126,16 +169,30 @@ public class SessionService {
 	 * Call this periodically when you get meter updates from charger.
 	 */
 	public void checkAndStopIfReachedKwh(Long sessionId, double currentKwh) {
-		Session session = sessionRepository.findById(sessionId)
-				.orElseThrow(() -> new RuntimeException("Session not found"));
+		try {
+			Session session = sessionRepository.findById(sessionId)
+					.orElseThrow(() -> new RuntimeException("Session not found"));
 
-		Receipt receipt = receiptRepository.findBySession(session).orElse(null);
-		if (receipt != null && receipt.getSelectedKwh() != null &&
-				"active".equalsIgnoreCase(session.getStatus())) {
-			double targetKwh = receipt.getSelectedKwh().doubleValue();
-			if (currentKwh >= targetKwh) {
-				finalizeSession(session, "AUTO_STOP_KWH_REACHED");
+			Receipt receipt = receiptRepository.findBySession(session).orElse(null);
+			if (receipt != null && receipt.getSelectedKwh() != null &&
+					"active".equalsIgnoreCase(session.getStatus())) {
+				double targetKwh = receipt.getSelectedKwh().doubleValue();
+
+				if (log.isDebugEnabled()) {
+					log.debug("Checking kWh limit: sessionId={}, currentKwh={}, targetKwh={}",
+							sessionId, currentKwh, targetKwh);
+				}
+
+				if (currentKwh >= targetKwh) {
+					log.info("kWh limit reached, stopping session: sessionId={}, currentKwh={}, targetKwh={}",
+							sessionId, currentKwh, targetKwh);
+					finalizeSession(session, "AUTO_STOP_KWH_REACHED");
+				}
 			}
+		} catch (Exception e) {
+			log.error("Failed to check kWh limit: sessionId={}, currentKwh={}: {}",
+					sessionId, currentKwh, e.getMessage(), e);
+			throw e;
 		}
 	}
 
@@ -143,91 +200,119 @@ public class SessionService {
 	 * Finalize session (shared logic).
 	 */
 	private Map<String, Object> finalizeSession(Session session, String stopReason) {
-		if (!"active".equalsIgnoreCase(session.getStatus())) {
-			return buildAlreadyCompletedResponse(session);
-		}
+		try {
+			log.info("Finalizing session: sessionId={}, stopReason={}", session.getId(), stopReason);
 
-		session.setEndTime(LocalDateTime.now());
-		session.setStatus("completed");
+			if (!"active".equalsIgnoreCase(session.getStatus())) {
+				return buildAlreadyCompletedResponse(session);
+			}
 
-		Receipt receipt = receiptRepository.findBySession(session).orElse(null);
+			session.setEndTime(LocalDateTime.now());
+			session.setStatus("completed");
 
-		double energyUsed;
-		BigDecimal finalCostBD;
-		boolean refundIssued = false;
-		boolean extraDebited = false;
+			Receipt receipt = receiptRepository.findBySession(session).orElse(null);
 
-		if (receipt != null && receipt.getSelectedKwh() != null) {
-			// Prepaid selected kWh session → always use selectedKwh
-			energyUsed = receipt.getSelectedKwh().doubleValue();
-			finalCostBD = BigDecimal.valueOf(energyUsed)
-					.multiply(BigDecimal.valueOf(session.getCharger().getRate()))
-					.setScale(2, RoundingMode.HALF_UP);
-		} else {
-			// Plan session → calculate actual energy used
-			energyUsed = calculateEnergyUsed(session);
-			finalCostBD = BigDecimal.valueOf(energyUsed)
-					.multiply(BigDecimal.valueOf(session.getCharger().getRate()))
-					.setScale(2, RoundingMode.HALF_UP);
+			double energyUsed;
+			BigDecimal finalCostBD;
+			boolean refundIssued = false;
+			boolean extraDebited = false;
 
-			if (receipt != null) {
-				BigDecimal prepaid = receipt.getAmount();
+			if (receipt != null && receipt.getSelectedKwh() != null) {
+				// Prepaid selected kWh session → always use selectedKwh
+				energyUsed = receipt.getSelectedKwh().doubleValue();
+				finalCostBD = BigDecimal.valueOf(energyUsed)
+						.multiply(BigDecimal.valueOf(session.getCharger().getRate()))
+						.setScale(2, RoundingMode.HALF_UP);
 
-				if (finalCostBD.compareTo(prepaid) < 0) {
-					BigDecimal refund = prepaid.subtract(finalCostBD);
-					walletTransactionService.credit(session.getUser().getId(), session.getId(),
-							refund, "PLAN_SESSION_REFUND");
-					refundIssued = true;
-					userNotificationService.createNotification(
-							session.getUser().getId(),
-							"Refund Issued",
-							"Unused amount ₹" + refund + " has been refunded to your wallet.",
-							"REFUND");
-				} else if (finalCostBD.compareTo(prepaid) > 0) {
-					BigDecimal extra = finalCostBD.subtract(prepaid);
-					walletTransactionService.debit(session.getUser().getId(), session.getId(),
-							extra, "PLAN_SESSION_EXTRA_DEBIT");
-					extraDebited = true;
-					userNotificationService.createNotification(
-							session.getUser().getId(),
-							"Extra Debit",
-							"Extra amount ₹" + extra + " has been deducted due to higher usage.",
-							"DEBIT");
+				log.info("Using prepaid kWh: sessionId={}, selectedKwh={}, finalCost={}",
+						session.getId(), energyUsed, finalCostBD);
+			} else {
+				// Plan session → calculate actual energy used
+				energyUsed = calculateEnergyUsed(session);
+				finalCostBD = BigDecimal.valueOf(energyUsed)
+						.multiply(BigDecimal.valueOf(session.getCharger().getRate()))
+						.setScale(2, RoundingMode.HALF_UP);
+
+				log.info("Calculated energy used: sessionId={}, energyUsed={}, finalCost={}",
+						session.getId(), energyUsed, finalCostBD);
+
+				if (receipt != null) {
+					BigDecimal prepaid = receipt.getAmount();
+
+					if (finalCostBD.compareTo(prepaid) < 0) {
+						BigDecimal refund = prepaid.subtract(finalCostBD);
+						walletTransactionService.credit(session.getUser().getId(), session.getId(),
+								refund, "PLAN_SESSION_REFUND");
+						refundIssued = true;
+
+						log.info("Refund issued: sessionId={}, prepaid={}, finalCost={}, refund={}",
+								session.getId(), prepaid, finalCostBD, refund);
+
+						userNotificationService.createNotification(
+								session.getUser().getId(),
+								"Refund Issued",
+								"Unused amount ₹" + refund + " has been refunded to your wallet.",
+								"REFUND");
+					} else if (finalCostBD.compareTo(prepaid) > 0) {
+						BigDecimal extra = finalCostBD.subtract(prepaid);
+						walletTransactionService.debit(session.getUser().getId(), session.getId(),
+								extra, "PLAN_SESSION_EXTRA_DEBIT");
+						extraDebited = true;
+
+						log.info("Extra debit: sessionId={}, prepaid={}, finalCost={}, extra={}",
+								session.getId(), prepaid, finalCostBD, extra);
+
+						userNotificationService.createNotification(
+								session.getUser().getId(),
+								"Extra Debit",
+								"Extra amount ₹" + extra + " has been deducted due to higher usage.",
+								"DEBIT");
+					}
 				}
 			}
+
+			session.setEnergyKwh(energyUsed);
+			session.setCost(finalCostBD.doubleValue());
+			sessionRepository.save(session);
+
+			if (receipt != null) {
+				receiptService.finalizeReceipt(session, finalCostBD);
+			}
+
+			Duration duration = Duration.between(session.getStartTime(), session.getEndTime());
+			log.info(
+					"Session completed: sessionId={}, userId={}, energyUsed={}, finalCost={}, duration={} minutes, stopReason={}",
+					session.getId(), session.getUser().getId(), energyUsed, finalCostBD,
+					duration.toMinutes(), stopReason);
+
+			adminNotificationService.createSystemNotification(
+					"User '" + session.getUser().getName() + "' stopped session. Energy used: " +
+							String.format("%.2f", energyUsed) + " kWh, Final cost: ₹" + finalCostBD,
+					"SESSION_COMPLETED");
+
+			userNotificationService.createNotification(
+					session.getUser().getId(),
+					"Charging Stopped",
+					"Your session has ended (" + stopReason + "). Total cost: ₹" + finalCostBD,
+					"INFO");
+
+			revenueService.recordRevenueForSession(session,
+					finalCostBD.doubleValue(), "Wallet", null, "success");
+
+			Map<String, Object> response = new HashMap<>();
+			response.put("sessionId", session.getId());
+			response.put("energyUsed", energyUsed);
+			response.put("finalCost", finalCostBD);
+			response.put("refundIssued", refundIssued);
+			response.put("extraDebited", extraDebited);
+			response.put("message", "Session completed (" + stopReason + ")" +
+					(refundIssued ? " - Refund issued" : extraDebited ? " - Extra debited" : ""));
+			return response;
+		} catch (Exception e) {
+			log.error("Failed to finalize session: sessionId={}, stopReason={}: {}",
+					session.getId(), stopReason, e.getMessage(), e);
+			throw e;
 		}
-
-		session.setEnergyKwh(energyUsed);
-		session.setCost(finalCostBD.doubleValue());
-		sessionRepository.save(session);
-
-		if (receipt != null) {
-			receiptService.finalizeReceipt(session, finalCostBD);
-		}
-
-		adminNotificationService.createSystemNotification(
-				"User '" + session.getUser().getName() + "' stopped session. Energy used: " +
-						String.format("%.2f", energyUsed) + " kWh, Final cost: ₹" + finalCostBD,
-				"SESSION_COMPLETED");
-
-		userNotificationService.createNotification(
-				session.getUser().getId(),
-				"Charging Stopped",
-				"Your session has ended (" + stopReason + "). Total cost: ₹" + finalCostBD,
-				"INFO");
-
-		revenueService.recordRevenueForSession(session,
-				finalCostBD.doubleValue(), "Wallet", null, "success");
-
-		Map<String, Object> response = new HashMap<>();
-		response.put("sessionId", session.getId());
-		response.put("energyUsed", energyUsed);
-		response.put("finalCost", finalCostBD);
-		response.put("refundIssued", refundIssued);
-		response.put("extraDebited", extraDebited);
-		response.put("message", "Session completed (" + stopReason + ")" +
-				(refundIssued ? " - Refund issued" : extraDebited ? " - Extra debited" : ""));
-		return response;
 	}
 
 	private Map<String, Object> buildAlreadyCompletedResponse(Session session) {
@@ -250,53 +335,100 @@ public class SessionService {
 			try {
 				stopSessionBySystem(sessionId);
 			} catch (Exception e) {
-				e.printStackTrace();
+				log.error("Auto-stop scheduler error: sessionId={}: {}", sessionId, e.getMessage(), e);
 			}
 		}, durationMin, TimeUnit.MINUTES);
 	}
 
 	// Count total completed sessions
 	public long getTotalSessions() {
-		return sessionRepository.findAll().stream()
-				.filter(s -> "completed".equalsIgnoreCase(s.getStatus()))
-				.count();
+		try {
+			long total = sessionRepository.findAll().stream()
+					.filter(s -> "completed".equalsIgnoreCase(s.getStatus()))
+					.count();
+
+			if (log.isDebugEnabled()) {
+				log.debug("Total completed sessions: {}", total);
+			}
+
+			return total;
+		} catch (Exception e) {
+			log.error("Failed to get total sessions: {}", e.getMessage(), e);
+			throw e;
+		}
 	}
 
 	// Sum total energy consumed (kWh)
 	public double getTotalEnergyConsumed() {
-		return sessionRepository.findAll().stream()
-				.filter(s -> "completed".equalsIgnoreCase(s.getStatus()))
-				.mapToDouble(Session::getEnergyKwh)
-				.sum();
+		try {
+			double totalEnergy = sessionRepository.findAll().stream()
+					.filter(s -> "completed".equalsIgnoreCase(s.getStatus()))
+					.mapToDouble(Session::getEnergyKwh)
+					.sum();
+
+			if (log.isDebugEnabled()) {
+				log.debug("Total energy consumed: {} kWh", totalEnergy);
+			}
+
+			return totalEnergy;
+		} catch (Exception e) {
+			log.error("Failed to get total energy consumed: {}", e.getMessage(), e);
+			throw e;
+		}
 	}
 
 	// Active Sessions - Sessions that are currently in progress
 	public Long getActiveSessions() {
-		return sessionRepository.findAll().stream()
-				.filter(session -> "active".equalsIgnoreCase(session.getStatus()))
-				.count();
+		try {
+			Long activeCount = sessionRepository.findAll().stream()
+					.filter(session -> "active".equalsIgnoreCase(session.getStatus()))
+					.count();
+
+			if (log.isDebugEnabled()) {
+				log.debug("Active sessions count: {}", activeCount);
+			}
+
+			return activeCount;
+		} catch (Exception e) {
+			log.error("Failed to get active sessions: {}", e.getMessage(), e);
+			throw e;
+		}
 	}
 
 	// Average Uptime - Based on successful vs total sessions
 	public Double getAverageUptime() {
-		long totalSessions = sessionRepository.count();
+		try {
+			long totalSessions = sessionRepository.count();
 
-		if (totalSessions == 0) {
-			return 0.0;
+			if (totalSessions == 0) {
+				log.warn("No sessions found for uptime calculation");
+				return 0.0;
+			}
+
+			long completedSessions = sessionRepository.findAll().stream()
+					.filter(session -> "completed".equalsIgnoreCase(session.getStatus()))
+					.count();
+
+			double uptime = (completedSessions * 100.0) / totalSessions;
+			double roundedUptime = Math.round(uptime * 100.0) / 100.0;
+
+			log.info("Average uptime calculated: {}% (completed={}, total={})",
+					roundedUptime, completedSessions, totalSessions);
+
+			return roundedUptime;
+		} catch (Exception e) {
+			log.error("Failed to calculate average uptime: {}", e.getMessage(), e);
+			throw e;
 		}
-
-		long completedSessions = sessionRepository.findAll().stream()
-				.filter(session -> "completed".equalsIgnoreCase(session.getStatus()))
-				.count();
-
-		double uptime = (completedSessions * 100.0) / totalSessions;
-		return Math.round(uptime * 100.0) / 100.0; // Round to 2 decimals
 	}
 
 	/**
 	 * Get session by ID (used by OCPP WebSocket)
 	 */
 	public Session getSessionById(Long sessionId) {
+		if (log.isDebugEnabled()) {
+			log.debug("Fetching session by ID: sessionId={}", sessionId);
+		}
 		return sessionRepository.findById(sessionId).orElse(null);
 	}
 
@@ -304,7 +436,9 @@ public class SessionService {
 	 * Find any active session (fallback for OCPP)
 	 */
 	public Optional<Session> findLastActiveSession() {
+		if (log.isDebugEnabled()) {
+			log.debug("Finding last active session");
+		}
 		return sessionRepository.findFirstByStatusOrderByStartTimeDesc("active");
 	}
-
 }

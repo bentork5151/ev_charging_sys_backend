@@ -1,18 +1,21 @@
-
 package com.bentork.ev_system.controller;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import com.bentork.ev_system.model.UserNotification;
 import com.bentork.ev_system.service.UserNotificationService;
 
+import lombok.extern.slf4j.Slf4j;
+
 @RestController
 @RequestMapping("/api/notifications")
+@Slf4j
 public class UserNotificationController {
 
     private final UserNotificationService service;
@@ -23,19 +26,39 @@ public class UserNotificationController {
 
     // Get all notifications for a user
     @GetMapping("/user/{userId}")
-    public List<UserNotification> getUserNotifications(@PathVariable Long userId) {
-        return service.getUserNotifications(userId);
+    public ResponseEntity<List<UserNotification>> getUserNotifications(@PathVariable Long userId) {
+        log.info("GET /api/notifications/user/{} - Request received", userId);
+
+        try {
+            List<UserNotification> notifications = service.getUserNotifications(userId);
+            log.info("GET /api/notifications/user/{} - Success, returned {} notifications",
+                    userId, notifications.size());
+            return ResponseEntity.ok(notifications);
+        } catch (Exception e) {
+            log.error("GET /api/notifications/user/{} - Failed: {}", userId, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 
     // Get only unread notifications
     @GetMapping("/user/{userId}/unread")
-    public List<UserNotification> getUnreadNotifications(@PathVariable Long userId) {
-        return service.getUnreadNotifications(userId);
+    public ResponseEntity<List<UserNotification>> getUnreadNotifications(@PathVariable Long userId) {
+        log.info("GET /api/notifications/user/{}/unread - Request received", userId);
+
+        try {
+            List<UserNotification> notifications = service.getUnreadNotifications(userId);
+            log.info("GET /api/notifications/user/{}/unread - Success, returned {} unread notifications",
+                    userId, notifications.size());
+            return ResponseEntity.ok(notifications);
+        } catch (Exception e) {
+            log.error("GET /api/notifications/user/{}/unread - Failed: {}", userId, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 
     // Create a notification for a user
     @PostMapping("/user/{userId}")
-    public UserNotification createNotification(
+    public ResponseEntity<UserNotification> createNotification(
             @PathVariable Long userId,
             @RequestBody Map<String, String> payload) {
 
@@ -43,14 +66,39 @@ public class UserNotificationController {
         String message = payload.get("message");
         String type = payload.get("type");
 
-        return service.createNotification(userId, title, message, type);
+        log.info("POST /api/notifications/user/{} - Creating notification, type={}", userId, type);
+
+        try {
+            UserNotification notification = service.createNotification(userId, title, message, type);
+            log.info("POST /api/notifications/user/{} - Success, notificationId={}",
+                    userId, notification.getId());
+            return ResponseEntity.status(HttpStatus.CREATED).body(notification);
+        } catch (Exception e) {
+            log.error("POST /api/notifications/user/{} - Failed, type={}: {}",
+                    userId, type, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 
     // Mark a notification as read
     @PostMapping("/{notificationId}/read")
     public ResponseEntity<UserNotification> markAsRead(@PathVariable Long notificationId) {
-        Optional<UserNotification> updated = service.markAsRead(notificationId);
-        return updated.map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.notFound().build());
+        log.info("POST /api/notifications/{}/read - Marking as read", notificationId);
+
+        try {
+            Optional<UserNotification> updated = service.markAsRead(notificationId);
+
+            if (updated.isPresent()) {
+                log.info("POST /api/notifications/{}/read - Success", notificationId);
+                return ResponseEntity.ok(updated.get());
+            } else {
+                log.warn("POST /api/notifications/{}/read - Notification not found", notificationId);
+                return ResponseEntity.notFound().build();
+            }
+        } catch (Exception e) {
+            log.error("POST /api/notifications/{}/read - Failed: {}",
+                    notificationId, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 }

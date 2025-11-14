@@ -12,13 +12,16 @@ import com.bentork.ev_system.repository.PlanRepository;
 import com.bentork.ev_system.repository.UserRepository;
 import com.bentork.ev_system.service.ReceiptService;
 import com.bentork.ev_system.service.SessionService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/sessions")
 public class SessionController {
@@ -51,29 +54,44 @@ public class SessionController {
 			@RequestBody SessionDTO request,
 			@RequestHeader("Authorization") String authHeader) {
 
-		String token = authHeader.substring(7);
-		String email = jwtUtil.extractUsername(token);
-		User user = userRepository.findByEmail(email)
-				.orElseThrow(() -> new RuntimeException("User not found"));
+		log.info("POST /api/sessions/start - Starting session, chargerId={}, planId={}, selectedKwh={}",
+				request.getChargerId(), request.getPlanId(), request.getSelectedKwh());
 
-		Charger charger = chargerRepository.findById(request.getChargerId())
-				.orElseThrow(() -> new RuntimeException("Charger not found"));
+		try {
+			String token = authHeader.substring(7);
+			String email = jwtUtil.extractUsername(token);
+			User user = userRepository.findByEmail(email)
+					.orElseThrow(() -> new RuntimeException("User not found"));
 
-		Plan plan = null;
-		if (request.getPlanId() != null) {
-			plan = planRepository.findById(request.getPlanId())
-					.orElseThrow(() -> new RuntimeException("Plan not found"));
+			Charger charger = chargerRepository.findById(request.getChargerId())
+					.orElseThrow(() -> new RuntimeException("Charger not found"));
+
+			Plan plan = null;
+			if (request.getPlanId() != null) {
+				plan = planRepository.findById(request.getPlanId())
+						.orElseThrow(() -> new RuntimeException("Plan not found"));
+			}
+
+			Receipt receipt = receiptService.createReceipt(user, plan, charger, request.getSelectedKwh());
+			Receipt paidReceipt = receiptService.payReceipt(receipt.getId(), request.getBoxId());
+			Session session = paidReceipt.getSession();
+
+			log.info("POST /api/sessions/start - Success, sessionId={}, receiptId={}, userId={}, amountDebited={}",
+					session.getId(), paidReceipt.getId(), user.getId(), paidReceipt.getAmount());
+
+			return ResponseEntity.ok(Map.of(
+					"receiptId", paidReceipt.getId(),
+					"sessionId", session.getId(),
+					"amountDebited", paidReceipt.getAmount(),
+					"message", "Session started successfully."));
+		} catch (RuntimeException e) {
+			log.error("POST /api/sessions/start - Failed: {}", e.getMessage());
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
+		} catch (Exception e) {
+			log.error("POST /api/sessions/start - Failed: {}", e.getMessage(), e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+					.body(Map.of("error", "Failed to start session"));
 		}
-
-		Receipt receipt = receiptService.createReceipt(user, plan, charger, request.getSelectedKwh());
-		Receipt paidReceipt = receiptService.payReceipt(receipt.getId(), request.getBoxId());
-		Session session = paidReceipt.getSession();
-
-		return ResponseEntity.ok(Map.of(
-				"receiptId", paidReceipt.getId(),
-				"sessionId", session.getId(),
-				"amountDebited", paidReceipt.getAmount(),
-				"message", "Session started successfully."));
 	}
 
 	/**
@@ -84,39 +102,90 @@ public class SessionController {
 			@RequestBody SessionDTO request,
 			@RequestHeader("Authorization") String authHeader) {
 
-		String token = authHeader.substring(7);
-		String email = jwtUtil.extractUsername(token);
-		User user = userRepository.findByEmail(email)
-				.orElseThrow(() -> new RuntimeException("User not found"));
+		log.info("POST /api/sessions/stop - Stopping session, sessionId={}", request.getSessionId());
 
-		Map<String, Object> result = sessionService.stopSession(user.getId(), request);
-		return ResponseEntity.ok(result);
+		try {
+			String token = authHeader.substring(7);
+			String email = jwtUtil.extractUsername(token);
+			User user = userRepository.findByEmail(email)
+					.orElseThrow(() -> new RuntimeException("User not found"));
+
+			Map<String, Object> result = sessionService.stopSession(user.getId(), request);
+
+			log.info("POST /api/sessions/stop - Success, sessionId={}, energyUsed={}, finalCost={}",
+					request.getSessionId(), result.get("energyUsed"), result.get("finalCost"));
+
+			return ResponseEntity.ok(result);
+		} catch (RuntimeException e) {
+			log.error("POST /api/sessions/stop - Failed, sessionId={}: {}",
+					request.getSessionId(), e.getMessage());
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
+		} catch (Exception e) {
+			log.error("POST /api/sessions/stop - Failed: {}", e.getMessage(), e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+					.body(Map.of("error", "Failed to stop session"));
+		}
 	}
 
 	// @PreAuthorize("hasAuthority('ADMIN')")
 	@GetMapping("/total")
 	public ResponseEntity<Long> getTotalSessions(@RequestHeader("Authorization") String authHeader) {
-		// ensureAdmin(authHeader);
-		return ResponseEntity.ok(sessionService.getTotalSessions());
+		log.info("GET /api/sessions/total - Request received");
+
+		try {
+			// ensureAdmin(authHeader);
+			Long total = sessionService.getTotalSessions();
+			log.info("GET /api/sessions/total - Success, total={}", total);
+			return ResponseEntity.ok(total);
+		} catch (Exception e) {
+			log.error("GET /api/sessions/total - Failed: {}", e.getMessage(), e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+		}
 	}
 
 	// @PreAuthorize("hasAuthority('ADMIN')")
 	@GetMapping("/energy")
 	public ResponseEntity<Double> getTotalEnergy(@RequestHeader("Authorization") String authHeader) {
-		// ensureAdmin(authHeader);
-		return ResponseEntity.ok(sessionService.getTotalEnergyConsumed());
+		log.info("GET /api/sessions/energy - Request received");
+
+		try {
+			// ensureAdmin(authHeader);
+			Double totalEnergy = sessionService.getTotalEnergyConsumed();
+			log.info("GET /api/sessions/energy - Success, totalEnergy={} kWh", totalEnergy);
+			return ResponseEntity.ok(totalEnergy);
+		} catch (Exception e) {
+			log.error("GET /api/sessions/energy - Failed: {}", e.getMessage(), e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+		}
 	}
 
 	// Active Sessions
 	@GetMapping("/active")
 	public ResponseEntity<Long> getActiveSessions(@RequestHeader("Authorization") String authHeader) {
-		return ResponseEntity.ok(sessionService.getActiveSessions());
+		log.info("GET /api/sessions/active - Request received");
+
+		try {
+			Long active = sessionService.getActiveSessions();
+			log.info("GET /api/sessions/active - Success, active={}", active);
+			return ResponseEntity.ok(active);
+		} catch (Exception e) {
+			log.error("GET /api/sessions/active - Failed: {}", e.getMessage(), e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+		}
 	}
 
 	// Average Uptime
 	@GetMapping("/uptime")
 	public ResponseEntity<Double> getAverageUptime(@RequestHeader("Authorization") String authHeader) {
-		return ResponseEntity.ok(sessionService.getAverageUptime());
-	}
+		log.info("GET /api/sessions/uptime - Request received");
 
+		try {
+			Double uptime = sessionService.getAverageUptime();
+			log.info("GET /api/sessions/uptime - Success, uptime={}%", uptime);
+			return ResponseEntity.ok(uptime);
+		} catch (Exception e) {
+			log.error("GET /api/sessions/uptime - Failed: {}", e.getMessage(), e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+		}
+	}
 }

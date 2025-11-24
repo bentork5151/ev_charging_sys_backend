@@ -24,9 +24,6 @@ public class RFIDCardService {
     @Autowired
     private UserRepository userRepo;
 
-    @Autowired
-    private SteveDatabaseService steveDatabaseService;
-
     // Register new RFID card
     public RFIDCard registerCard(RFIDCardRequest req) {
         log.info("Registering new RFID card: {}", req.getCardNumber());
@@ -41,14 +38,6 @@ public class RFIDCardService {
 
         RFIDCard savedCard = cardRepo.save(card);
         log.info("Card saved in our database: {}", savedCard.getCardNumber());
-
-        boolean pushedToSteve = steveDatabaseService.addOcppTag(savedCard.getCardNumber(), user);
-        if (!pushedToSteve) {
-            log.error("CRITICAL: Failed to register card {} in SteVe! User won't be able to charge! Deleting Credentials from our database", savedCard.getCardNumber());
-
-            deleteCard(savedCard.getId());
-            log.error("Delete successfull card number: {}", savedCard.getCardNumber());
-        }
 
         return savedCard;
     }

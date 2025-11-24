@@ -13,6 +13,9 @@ import com.bentork.ev_system.model.Station;
 import com.bentork.ev_system.repository.ChargerRepository;
 import com.bentork.ev_system.repository.StationRepository;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @Service
 public class ChargerService {
 
@@ -98,5 +101,11 @@ public class ChargerService {
         return chargerRepository.findAll().stream()
                 .filter(charger -> "DC".equalsIgnoreCase(charger.getChargerType()))
                 .count();
+    }
+
+    // Get Charger by ocppid
+    public ChargerDTO getChargerByOcppId(String ocppId) {
+        Charger charger = chargerRepository.findByOcppId(ocppId).orElseThrow();
+        return ChargerMapper.toDto(charger);
     }
 }

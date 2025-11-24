@@ -13,7 +13,6 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.bentork.ev_system.config.DataSourceConfig;
 import com.bentork.ev_system.config.JwtUtil;
 import com.bentork.ev_system.dto.request.SessionDTO;
 import com.bentork.ev_system.model.Charger;
@@ -51,9 +50,6 @@ public class SessionController {
 
     @Autowired
     private UserRepository userRepository;
-
-    @Autowired
-    private DataSourceConfig dataSourceConfig;
 
     /**
      * Start session using prepaid plan OR kWh package/custom. Creates receipt →

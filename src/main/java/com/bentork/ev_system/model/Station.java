@@ -25,8 +25,8 @@ public class Station {
     private Location location;
 
     private String name;
-//  private String ocppId;
-//  private String type;
+    // private String ocppId;
+    // private String type;
     private String status;
     private String directionLink;
 
@@ -39,70 +39,68 @@ public class Station {
     }
 
     // Getters & Setters
-    
-	public Long getId() {
-		return id;
-	}
+    public Long getId() {
+        return id;
+    }
 
-	public void setId(Long id) {
-		this.id = id;
-	}
+    public void setId(Long id) {
+        this.id = id;
+    }
 
-	public Location getLocation() {
-		return location;
-	}
+    public Location getLocation() {
+        return location;
+    }
 
-	public void setLocation(Location location) {
-		this.location = location;
-	}
+    public void setLocation(Location location) {
+        this.location = location;
+    }
 
-	public String getName() {
-		return name;
-	}
+    public String getName() {
+        return name;
+    }
 
-	public void setName(String name) {
-		this.name = name;
-	}
+    public void setName(String name) {
+        this.name = name;
+    }
 
-//	public String getOcppId() {
-//		return ocppId;
-//	}
-//
-//	public void setOcppId(String ocppId) {
-//		this.ocppId = ocppId;
-//	}
+    // public String getOcppId() {
+    //     return ocppId;
+    // }
 
-//	public String getType() {
-//		return type;
-//	}
-//
-//	public void setType(String type) {
-//		this.type = type;
-//	}
+    // public void setOcppId(String ocppId) {
+    //     this.ocppId = ocppId;
+    // }
 
-	public String getStatus() {
-		return status;
-	}
+    // public String getType() {
+    //     return type;
+    // }
 
-	public void setStatus(String status) {
-		this.status = status;
-	}
+    // public void setType(String type) {
+    //     this.type = type;
+    // }
 
-	public String getDirectionLink() {
-		return directionLink;
-	}
+    public String getStatus() {
+        return status;
+    }
 
-	public void setDirectionLink(String directionLink) {
-		this.directionLink = directionLink;
-	}
+    public void setStatus(String status) {
+        this.status = status;
+    }
 
-	public LocalDateTime getCreatedAt() {
-		return createdAt;
-	}
+    public String getDirectionLink() {
+        return directionLink;
+    }
 
-	public void setCreatedAt(LocalDateTime createdAt) {
-		this.createdAt = createdAt;
-	}
-    
+    public void setDirectionLink(String directionLink) {
+        this.directionLink = directionLink;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
 }
-

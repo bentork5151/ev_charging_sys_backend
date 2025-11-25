@@ -84,7 +84,7 @@ public class RFIDChargingService {
             adminNotificationService.createSystemNotification(
                     "Charging session started for user " + user.getName() +
                             " on charger " + charger.getId(),
-                    "SESSION_START");
+                    "Session Start");
 
             return saved;
         } catch (RuntimeException e) {
@@ -172,7 +172,7 @@ public class RFIDChargingService {
                 return session;
             }
 
-            session.setStatus("COMPLETED");
+            session.setStatus("Completed");
             session.setEndTime(LocalDateTime.now());
 
             System.out.println(" Relay OFF → Charger " + session.getCharger().getId());
@@ -218,7 +218,7 @@ public class RFIDChargingService {
             adminNotificationService.createSystemNotification(
                     "Charging session completed for User " + saved.getUser().getName() +
                             ". Total cost: ₹" + saved.getCost(),
-                    "SESSION_END");
+                    "Session End");
 
             return saved;
         } catch (Exception e) {

@@ -134,7 +134,7 @@ public class SessionService {
 				return buildAlreadyCompletedResponse(session);
 			}
 
-			return finalizeSession(session, "MANUAL_STOP");
+			return finalizeSession(session, "Manual Stop");
 		} catch (Exception e) {
 			log.error("Failed to stop session: sessionId={}, userId={}: {}",
 					request.getSessionId(), userId, e.getMessage(), e);
@@ -153,7 +153,7 @@ public class SessionService {
 					.orElseThrow(() -> new RuntimeException("Session not found"));
 
 			if ("active".equalsIgnoreCase(session.getStatus())) {
-				finalizeSession(session, "AUTO_STOP");
+				finalizeSession(session, "Auto Stop");
 			} else {
 				log.info("Session already inactive, skipping auto-stop: sessionId={}, status={}",
 						sessionId, session.getStatus());
@@ -242,7 +242,7 @@ public class SessionService {
 					if (finalCostBD.compareTo(prepaid) < 0) {
 						BigDecimal refund = prepaid.subtract(finalCostBD);
 						walletTransactionService.credit(session.getUser().getId(), session.getId(),
-								refund, "PLAN_SESSION_REFUND");
+								refund, "Plan session refund");
 						refundIssued = true;
 
 						log.info("Refund issued: sessionId={}, prepaid={}, finalCost={}, refund={}",
@@ -256,7 +256,7 @@ public class SessionService {
 					} else if (finalCostBD.compareTo(prepaid) > 0) {
 						BigDecimal extra = finalCostBD.subtract(prepaid);
 						walletTransactionService.debit(session.getUser().getId(), session.getId(),
-								extra, "PLAN_SESSION_EXTRA_DEBIT");
+								extra, "Plan Session Extra Debit");
 						extraDebited = true;
 
 						log.info("Extra debit: sessionId={}, prepaid={}, finalCost={}, extra={}",
@@ -266,7 +266,7 @@ public class SessionService {
 								session.getUser().getId(),
 								"Extra Debit",
 								"Extra amount ₹" + extra + " has been deducted due to higher usage.",
-								"DEBIT");
+								"Debit");
 					}
 				}
 			}
@@ -288,7 +288,7 @@ public class SessionService {
 			adminNotificationService.createSystemNotification(
 					"User '" + session.getUser().getName() + "' stopped session. Energy used: " +
 							String.format("%.2f", energyUsed) + " kWh, Final cost: ₹" + finalCostBD,
-					"SESSION_COMPLETED");
+					"Session Completed");
 
 			userNotificationService.createNotification(
 					session.getUser().getId(),

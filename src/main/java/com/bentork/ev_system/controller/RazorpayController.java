@@ -47,7 +47,7 @@ public class RazorpayController {
                 return ResponseEntity.badRequest().body("Invalid signature.");
             }
 
-            // ✅ Fetch actual amount from Razorpay order object
+            // Fetch actual amount from Razorpay order object
             com.razorpay.Order razorOrder = razorpayService.fetchOrder(orderId);
             BigDecimal amount = new BigDecimal(razorOrder.get("amount").toString())
                     .divide(BigDecimal.valueOf(100)); // Convert paise to rupees

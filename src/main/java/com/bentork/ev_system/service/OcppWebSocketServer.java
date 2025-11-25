@@ -20,6 +20,7 @@ import com.bentork.ev_system.repository.ReceiptRepository;
 import com.bentork.ev_system.repository.SessionRepository;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode; // Import RoundingMode
 import java.net.InetSocketAddress;
 import java.time.OffsetDateTime;
 import java.util.Map;
@@ -511,6 +512,7 @@ public class OcppWebSocketServer extends WebSocketServer {
 
     /**
      * Extract energy value from OCPP MeterValues payload
+     * * --- THIS IS THE UPDATED, MORE ROBUST METHOD ---
      */
     private BigDecimal extractEnergyFromMeterValues(JsonNode payload) {
         try {
@@ -530,20 +532,37 @@ public class OcppWebSocketServer extends WebSocketServer {
                     continue;
 
                 for (JsonNode sample : sampledValues) {
-                    String measurand = sample.has("measurand") ? sample.get("measurand").asText()
-                            : "Energy.Active.Import.Register";
+                    // SAFER: Only proceed if measurand is present
+                    if (!sample.has("measurand")) {
+                        continue;
+                    }
+
+                    String measurand = sample.get("measurand").asText();
 
                     if ("Energy.Active.Import.Register".equals(measurand)) {
-                        String value = sample.get("value").asText();
-                        // Convert Wh to kWh
-                        return new BigDecimal(value).divide(BigDecimal.valueOf(1000));
+                        String valueStr = sample.get("value").asText();
+                        BigDecimal value = new BigDecimal(valueStr);
+
+                        // ROBUSTNESS: Check the unit. Default to Wh if not specified.
+                        String unit = sample.has("unit") ? sample.get("unit").asText() : "Wh";
+
+                        if ("kWh".equalsIgnoreCase(unit)) {
+                            // Value is already in kWh
+                            log.debug("Meter value is already in kWh: {}", value);
+                            return value;
+                        } else {
+                            // Assume Wh, convert to kWh
+                            BigDecimal valueKwh = value.divide(BigDecimal.valueOf(1000), 4, RoundingMode.HALF_UP);
+                            log.debug("Converted Wh to kWh: {} Wh -> {} kWh", value, valueKwh);
+                            return valueKwh;
+                        }
                     }
                 }
             }
         } catch (Exception e) {
             log.error("Error parsing meter values: {}", e.getMessage());
         }
-        return null;
+        return null; // Return null if no valid energy value was found
     }
 
     /**
@@ -611,20 +630,47 @@ public class OcppWebSocketServer extends WebSocketServer {
     /**
      * Extract OCPP ID from WebSocket handshake
      * Expected format: ws://server:8887/CP001
+     * * -- NEW, SAFER VERSION --
      */
     private String extractOcppIdFromHandshake(WebSocket conn, ClientHandshake handshake) {
-        String resourceDescriptor = handshake.getResourceDescriptor();
-        if (resourceDescriptor != null && resourceDescriptor.length() > 1) {
-            String path = resourceDescriptor.substring(1).split("\\?")[0];
-            if (!path.isEmpty() && !path.equals("/")) {
-                return path;
-            }
-        }
+        // Add a log at the VERY start to prove this method is called
+        log.info("onOpen: New connection detected. Trying to extract OCPP ID...");
 
-        String fallbackId = "CHARGER-" + conn.getRemoteSocketAddress().toString()
-                .replaceAll("[^a-zA-Z0-9-]", "");
-        log.warn("Could not extract OCPP ID from handshake, using fallback: {}", fallbackId);
-        return fallbackId;
+        try {
+            String resourceDescriptor = handshake.getResourceDescriptor();
+            log.debug("onOpen: Handshake ResourceDescriptor: {}", resourceDescriptor);
+
+            // --- 1. Try to get ID from the URL path ---
+            if (resourceDescriptor != null && resourceDescriptor.length() > 1) {
+                // Path is something like "/OCPPCHG-12345"
+                String path = resourceDescriptor.substring(1).split("\\?")[0];
+                if (!path.isEmpty() && !path.equals("/")) {
+                    log.info("onOpen: Successfully extracted OCPP ID from path: {}", path);
+                    return path; // Success!
+                }
+            }
+
+            // --- 2. If path fails, create a safe fallback ID ---
+            log.warn("onOpen: Could not extract ID from path. Creating safe fallback ID.");
+            String remoteAddressStr = "UNKNOWN_ADDRESS";
+
+            // SAFETY CHECK: Make sure conn and remote address are not null
+            if (conn != null && conn.getRemoteSocketAddress() != null) {
+                remoteAddressStr = conn.getRemoteSocketAddress().toString();
+            }
+
+            String fallbackId = "CHARGER-" + remoteAddressStr.replaceAll("[^a-zA-Z0-9-]", "");
+            log.warn("onOpen: Using fallback ID: {}", fallbackId);
+            return fallbackId;
+
+        } catch (Exception e) {
+            // --- 3. Catch ALL exceptions ---
+            // This stops the crash from killing the onOpen method
+            log.error("onOpen: CRITICAL ERROR during ID extraction", e);
+
+            // Return a default ID so the server doesn't crash
+            return "ID_EXTRACTION_FAILED";
+        }
     }
 
     @Override

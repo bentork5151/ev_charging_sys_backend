@@ -60,7 +60,7 @@ public class RazorpayService {
         return razorpayClient.Orders.fetch(orderId);
     }
 
-    // ✅ Fetch order amount directly from Razorpay using order ID
+    // Fetch order amount directly from Razorpay using order ID
     public BigDecimal getOrderAmountFromRazorpay(String orderId) throws RazorpayException {
         Order order = razorpayClient.Orders.fetch(orderId);
         int amountInPaise = order.get("amount"); // in paise

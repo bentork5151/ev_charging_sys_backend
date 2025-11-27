@@ -3,6 +3,7 @@ package com.bentork.ev_system.controller;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -158,6 +159,22 @@ public class StationController {
         } catch (Exception e) {
             log.error("GET /api/stations/uptime - Failed: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    //ERROR TODAY
+    @GetMapping("/error/today")
+    public ResponseEntity<Long> getTodaysError(@RequestHeader("Authorization") String authHeader) {
+        try {
+            log.info("Calling station service to get todays total errors");
+            Long count = stationService.getTodaysErrorCount();
+            return ResponseEntity.ok(count);
+        } catch (DataAccessException e) {
+            log.error("Error while accessing data: {}", e);
+            return ResponseEntity.internalServerError().build();
+        } catch (Exception e) {
+            log.error("Global error: {}", e);
+            return ResponseEntity.internalServerError().build();
         }
     }
 }

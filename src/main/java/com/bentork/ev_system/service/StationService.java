@@ -1,9 +1,13 @@
 package com.bentork.ev_system.service;
 
+import java.time.Clock;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 
 import com.bentork.ev_system.dto.request.StationDTO;
@@ -30,6 +34,9 @@ public class StationService {
 
     @Autowired
     private ChargerRepository chargerRepository;
+
+    @Autowired
+    private Clock clock;
 
     public StationDTO createStation(StationDTO dto) {
         try {
@@ -206,6 +213,34 @@ public class StationService {
         } catch (Exception e) {
             log.error("Failed to calculate average uptime: {}", e.getMessage(), e);
             throw e;
+        }
+    }
+
+    //Error Today
+    public Long getTodaysErrorCount(){
+        try {
+            LocalDate today = LocalDate.now(clock);
+            LocalDateTime startOfDay = today.atStartOfDay();
+            LocalDateTime endOfDay = today.atTime(23, 59, 59, 999999999);
+
+            log.debug("Getting all station to count todays errors");
+            List<Station> allStations = stationRepository.findAll();
+
+            return allStations.stream()
+                    .filter(station -> station.getCreatedAt() != null
+                    && (station.getCreatedAt().isEqual(startOfDay)
+                    || (station.getCreatedAt().isAfter(startOfDay)
+                    && station.getCreatedAt().isBefore(endOfDay))))
+                    .filter(station -> station.getStatus() != null
+                    && station.getStatus().toLowerCase().contains("error"))
+                    .count();
+
+        } catch (DataAccessException e) {
+            log.error("Error while accessing data: {}", e);
+            throw e;
+        } catch (Exception e) {
+            log.error("Unexpected error in getTodaysErrorCount ", e);
+            throw new RuntimeException("Failed to calculate today's error count", e);
         }
     }
 }

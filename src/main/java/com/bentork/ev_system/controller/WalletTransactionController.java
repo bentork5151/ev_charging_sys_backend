@@ -14,7 +14,7 @@ public class WalletTransactionController {
 
     @Autowired
     private WalletTransactionService walletService;
-
+    
     @GetMapping("/history/{userId}")
     public ResponseEntity<List<WalletTransaction>> getWalletHistory(
             @PathVariable Long userId,

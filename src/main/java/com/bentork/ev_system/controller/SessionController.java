@@ -188,4 +188,62 @@ public class SessionController {
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
 		}
 	}
+
+	/**
+	 * Get specific session energy consumed (kWh) by Session ID.
+	 * Returns 0.0 if session just started or no energy recorded yet.
+	 */
+	@GetMapping("/{sessionId}/energy")
+	public ResponseEntity<Double> getSessionEnergy(
+			@PathVariable Long sessionId,
+			@RequestHeader("Authorization") String authHeader) {
+
+		log.info("GET /api/sessions/{}/energy - Request received", sessionId);
+
+		try {
+			Session session = sessionService.getSessionById(sessionId);
+			if (session == null) {
+				log.warn("GET /api/sessions/{}/energy - Session not found", sessionId);
+				return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+			}
+
+			// No null check needed because 'double' is primitive
+			double energy = session.getEnergyKwh();
+
+			log.info("GET /api/sessions/{}/energy - Success, energy={} kWh", sessionId, energy);
+			return ResponseEntity.ok(energy);
+
+		} catch (Exception e) {
+			log.error("GET /api/sessions/{}/energy - Failed: {}", sessionId, e.getMessage(), e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+		}
+	}
+
+	/**
+	 * Get specific session status by Session ID.
+	 */
+	@GetMapping("/{sessionId}/status")
+	public ResponseEntity<String> getSessionStatus(
+			@PathVariable Long sessionId,
+			@RequestHeader("Authorization") String authHeader) {
+
+		log.info("GET /api/sessions/{}/status - Request received", sessionId);
+
+		try {
+			Session session = sessionService.getSessionById(sessionId);
+			if (session == null) {
+				log.warn("GET /api/sessions/{}/status - Session not found", sessionId);
+				return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+			}
+
+			String status = session.getStatus();
+
+			log.info("GET /api/sessions/{}/status - Success, status={}", sessionId, status);
+			return ResponseEntity.ok(status);
+
+		} catch (Exception e) {
+			log.error("GET /api/sessions/{}/status - Failed: {}", sessionId, e.getMessage(), e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error fetching status");
+		}
+	}
 }

@@ -29,6 +29,9 @@ public class SecurityConfig {
     @Autowired
     private JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint; // ✅ Add this
 
+    @Autowired
+    private OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
+
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
         return authConfig.getAuthenticationManager();
@@ -51,7 +54,7 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
-                // .cors(cors -> {}) // ✅ Enable CORS support
+                .cors(cors -> {}) // ✅ Enable CORS support
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(jwtAuthenticationEntryPoint) // ✅ Use custom entry point
                 )
@@ -68,7 +71,9 @@ public class SecurityConfig {
                                 "/oauth2/**",
                                 "/login/**",
                                 "/api/user/google-login-success",
-                                "/error")
+                                "/api/user/byemail/**",
+                                "/error",
+                                "/favicon.ico")
                         .permitAll()
                         .requestMatchers(
                                 "/api/location/**",
@@ -83,12 +88,15 @@ public class SecurityConfig {
 
                         // ✅ Add this line to allow authenticated users to access sessions
                         .requestMatchers("/api/sessions/**").authenticated()
+                        .requestMatchers("/api/user/charger/**").authenticated()
+                        .requestMatchers("/api/user/plans/**").authenticated()
+                        .requestMatchers("/api/wallet/**").authenticated()
                         .anyRequest().authenticated())
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authenticationProvider(daoAuthenticationProvider())
                 .oauth2Login(oauth -> oauth
-                        .defaultSuccessUrl("/api/user/google-login-success", true))
+                        .successHandler(oAuth2AuthenticationSuccessHandler))
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

@@ -5,15 +5,21 @@ import com.bentork.ev_system.model.Receipt;
 import com.bentork.ev_system.model.Session;
 import com.bentork.ev_system.repository.ReceiptRepository;
 import com.bentork.ev_system.repository.SessionRepository;
+
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Clock;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Executors;
@@ -44,6 +50,9 @@ public class SessionService {
 
 	@Autowired
 	private UserNotificationService userNotificationService;
+
+	@Autowired
+    private Clock clock;
 
 	private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(5);
 
@@ -441,4 +450,47 @@ public class SessionService {
 		}
 		return sessionRepository.findFirstByStatusOrderByStartTimeDesc("active");
 	}
+
+	// Total error today count
+    public Long getTodaysErrorCount() {
+        try {
+            LocalDate today = LocalDate.now(clock);
+            LocalDateTime startOfDay = today.atStartOfDay();
+            LocalDateTime endOfDay = today.atTime(23, 59, 59, 999999999);
+
+            log.debug("Getting all session to count todays errors");
+            List<Session> allSessions = sessionRepository.findAll();
+
+            return allSessions.stream()
+                    .filter(session -> session.getCreatedAt() != null
+                    && (session.getCreatedAt().isEqual(startOfDay)
+                    || (session.getCreatedAt().isAfter(startOfDay)
+                    && session.getCreatedAt().isBefore(endOfDay))))
+                    .filter(session -> session.getStatus() != null
+                    && session.getStatus().toLowerCase().contains("error"))
+                    .count();
+
+        } catch (DataAccessException e) {
+            log.error("Error while accessing data: {}", e);
+            throw e;
+        } catch (Exception e) {
+            log.error("Unexpected error in getTodaysErrorCount ", e);
+            throw new RuntimeException("Failed to calculate today's error count", e);
+        }
+    }
+
+    //All session records
+    public List<Session> getallSessionRecords() {
+        try {
+            log.debug("Getting all session records");
+            List<Session> allRecords = sessionRepository.findAll();
+            return allRecords;
+        } catch (DataAccessException e) {
+            log.error("Error while accessing data: {}", e);
+            throw e;
+        } catch (Exception e) {
+            log.error("Unexpected error ", e);
+            throw e;
+        }
+    }
 }

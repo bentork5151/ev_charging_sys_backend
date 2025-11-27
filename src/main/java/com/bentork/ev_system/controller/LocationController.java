@@ -6,6 +6,7 @@ import com.bentork.ev_system.model.Admin;
 import com.bentork.ev_system.model.Location;
 import com.bentork.ev_system.repository.AdminRepository;
 import com.bentork.ev_system.repository.LocationRepository;
+import com.bentork.ev_system.service.LocationService;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,6 +29,9 @@ public class LocationController {
 
     @Autowired
     private AdminRepository adminRepository;
+
+    @Autowired
+    private LocationService locationService;
 
     @PostMapping("/add")
     public ResponseEntity<?> addLocation(@RequestBody LocationDTO dto, Authentication authentication) {
@@ -147,6 +151,18 @@ public class LocationController {
             log.error("DELETE /api/location/delete/{} - Failed: {}", id, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Collections.singletonMap("error", "Failed to delete location"));
+        }
+    }
+
+    @GetMapping("/all/name")
+    public ResponseEntity<?> getAllLocationNames() {
+        try {
+            log.info("Calling Location service to get all location name and id.");
+            List<Map<String, Object>> location = locationService.getAllLocationNames();
+            return ResponseEntity.ok(location);
+        } catch (Exception e) {
+            log.error("Fail to get location name and id: {}", e);
+            return ResponseEntity.internalServerError().body("Error Fetching location info");
         }
     }
 }

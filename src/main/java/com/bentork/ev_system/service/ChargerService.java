@@ -177,4 +177,16 @@ public class ChargerService {
             throw e;
         }
     }
+
+    // Get Charger by ocppid
+    public ChargerDTO getChargerByOcppId(String ocppId) {
+        try {
+            Charger charger = chargerRepository.findByOcppId(ocppId).orElseThrow();
+            log.debug("Chargers: {}", charger);
+            return ChargerMapper.toDto(charger);
+        } catch (Exception e) {
+            log.error("Failed to get chargers: {}", e.getMessage(), e);
+            throw e;
+        }
+    }
 }

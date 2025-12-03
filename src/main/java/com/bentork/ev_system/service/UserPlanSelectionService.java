@@ -1,6 +1,8 @@
 package com.bentork.ev_system.service;
 
+import com.bentork.ev_system.dto.request.PlanDTO;
 import com.bentork.ev_system.dto.request.UserPlanSelectionDTO;
+import com.bentork.ev_system.mapper.PlanMapper;
 import com.bentork.ev_system.mapper.UserPlanSelectionMapper;
 import com.bentork.ev_system.model.Plan;
 import com.bentork.ev_system.model.User;
@@ -8,11 +10,16 @@ import com.bentork.ev_system.model.UserPlanSelection;
 import com.bentork.ev_system.repository.PlanRepository;
 import com.bentork.ev_system.repository.UserPlanSelectionRepository;
 import com.bentork.ev_system.repository.UserRepository;
+
 import jakarta.transaction.Transactional;
+
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.bind.annotation.PathVariable;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -81,4 +88,22 @@ public class UserPlanSelectionService {
                 .map(UserPlanSelectionMapper::toDTO)
                 .collect(Collectors.toList());
     }
+
+    // Get all available plans for users
+    public List<PlanDTO> getAvailablePlans() {
+            List<Plan> plans = planRepository.findAll();
+
+            List<PlanDTO> planDTOs = plans.stream()
+                    .map(PlanMapper::toDTO)
+                    .collect(Collectors.toList());
+            return planDTOs;
+    }
+
+    public PlanDTO getPlanById(Long id) {
+        return planRepository.findById(id)
+                .map(plan -> PlanMapper.toDTO(plan))
+                .orElse(new PlanDTO());
+    }
+
+        
 }

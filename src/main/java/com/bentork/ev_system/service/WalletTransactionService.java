@@ -1,12 +1,17 @@
 package com.bentork.ev_system.service;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
 
+import org.springframework.data.domain.PageRequest;
+
+import org.springframework.stereotype.Service;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import com.bentork.ev_system.model.User;
 import com.bentork.ev_system.model.WalletTransaction;
 import com.bentork.ev_system.repository.UserRepository;
@@ -20,6 +25,19 @@ public class WalletTransactionService {
 
     @Autowired
     private UserRepository userRepo;
+
+    public List<WalletTransaction> getTransactionHistory(Long userId, String type, boolean viewAll) {
+        Sort sort = Sort.by("createdAt").descending();
+
+        // If viewAll is true, get UNPAGED list. If false, get page 0 with 10 items.
+        Pageable pageable = viewAll ? Pageable.unpaged() : PageRequest.of(0, 10, sort);
+
+        if (type != null && !type.isEmpty()) {
+            return repo.findByUserIdAndType(userId, type, pageable).getContent();
+        } else {
+            return repo.findByUserId(userId, pageable).getContent();
+        }
+    }
 
     /**
      * Save a WalletTransaction and update user's wallet balance if the transaction

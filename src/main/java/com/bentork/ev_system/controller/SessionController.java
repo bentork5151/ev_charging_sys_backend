@@ -1,5 +1,20 @@
 package com.bentork.ev_system.controller;
 
+import java.util.List;
+import java.util.Map;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataAccessException;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
 import com.bentork.ev_system.config.JwtUtil;
 import com.bentork.ev_system.dto.request.SessionDTO;
 import com.bentork.ev_system.model.Charger;
@@ -12,14 +27,8 @@ import com.bentork.ev_system.repository.PlanRepository;
 import com.bentork.ev_system.repository.UserRepository;
 import com.bentork.ev_system.service.ReceiptService;
 import com.bentork.ev_system.service.SessionService;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
 
-import java.util.Map;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @RestController
@@ -188,4 +197,94 @@ public class SessionController {
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
 		}
 	}
+
+	/**
+	 * Get specific session energy consumed (kWh) by Session ID.
+	 * Returns 0.0 if session just started or no energy recorded yet.
+	 */
+	@GetMapping("/{sessionId}/energy")
+	public ResponseEntity<Double> getSessionEnergy(
+			@PathVariable Long sessionId,
+			@RequestHeader("Authorization") String authHeader) {
+
+		log.info("GET /api/sessions/{}/energy - Request received", sessionId);
+
+		try {
+			Session session = sessionService.getSessionById(sessionId);
+			if (session == null) {
+				log.warn("GET /api/sessions/{}/energy - Session not found", sessionId);
+				return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+			}
+
+			// No null check needed because 'double' is primitive
+			double energy = session.getEnergyKwh();
+
+			log.info("GET /api/sessions/{}/energy - Success, energy={} kWh", sessionId, energy);
+			return ResponseEntity.ok(energy);
+
+		} catch (Exception e) {
+			log.error("GET /api/sessions/{}/energy - Failed: {}", sessionId, e.getMessage(), e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+		}
+	}
+
+	/**
+	 * Get specific session status by Session ID.
+	 */
+	@GetMapping("/{sessionId}/status")
+	public ResponseEntity<String> getSessionStatus(
+			@PathVariable Long sessionId,
+			@RequestHeader("Authorization") String authHeader) {
+
+		log.info("GET /api/sessions/{}/status - Request received", sessionId);
+
+		try {
+			Session session = sessionService.getSessionById(sessionId);
+			if (session == null) {
+				log.warn("GET /api/sessions/{}/status - Session not found", sessionId);
+				return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+			}
+
+			String status = session.getStatus();
+
+			log.info("GET /api/sessions/{}/status - Success, status={}", sessionId, status);
+			return ResponseEntity.ok(status);
+
+		} catch (Exception e) {
+			log.error("GET /api/sessions/{}/status - Failed: {}", sessionId, e.getMessage(), e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error fetching status");
+		}
+	}
+    
+	//ERROR TODAY
+    @GetMapping("/error/today")
+    public ResponseEntity<Long> getTodaysError(@RequestHeader("Authorization") String authHeader) {
+        try {
+            log.info("Calling session service to get todays total errors");
+            Long count = sessionService.getTodaysErrorCount();
+            return ResponseEntity.ok(count);
+        } catch (DataAccessException e) {
+            log.error("Error while accessing data: {}", e);
+            return ResponseEntity.internalServerError().build();
+        } catch (Exception e) {
+            log.error("Global error: {}", e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+	// list of session
+    @GetMapping("/all/records")
+    public ResponseEntity<List<Session>> getAllSessionRecords(@RequestHeader("Authorization") String authHeader) {
+        try {
+            log.info("Calling session service to get all session records");
+            List<Session> allRecords = sessionService.getallSessionRecords();
+            return ResponseEntity.ok(allRecords);
+        } catch (DataAccessException e) {
+            log.error("Error while accessing data: {}", e);
+            return ResponseEntity.internalServerError().build();
+        } catch (Exception e) {
+            log.error("Global error: {}", e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
 }

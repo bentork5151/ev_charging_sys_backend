@@ -52,7 +52,8 @@ public class OcppWebSocketServer extends WebSocketServer {
     @Value("${ocpp.server.port:8887}")
     private int serverPort;
 
-    @Value("${ocpp.heartbeat.interval:300}")
+    // json response in every 30s
+    @Value("${ocpp.heartbeat.interval:30}")
     private int heartbeatInterval;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -290,7 +291,13 @@ public class OcppWebSocketServer extends WebSocketServer {
                 throw new RuntimeException("No valid payment method found. Please use RFID card or prepay via app.");
             }
 
-            // Store meter start value
+            // Store meter start value in DB (Persistence)
+            double startKwh = meterStart / 1000.0;
+            session.setStartMeterReading(startKwh);
+            session.setLastMeterReading(startKwh);
+            sessionRepository.save(session);
+
+            // Keep map for fallback/legacy but DB is primary
             sessionToMeterStartMap.put(session.getId(), meterStart);
 
             // Map transaction to session
@@ -359,11 +366,19 @@ public class OcppWebSocketServer extends WebSocketServer {
             }
 
             // Calculate actual energy used (Wh to kWh)
-            Integer meterStart = sessionToMeterStartMap.getOrDefault(sessionId, 0);
-            double energyKwh = (meterStop - meterStart) / 1000.0;
+            // Use DB stored start meter reading for robustness
+            Double startKwh = session.getStartMeterReading();
+            if (startKwh == null) {
+                // Fallback to in-memory if DB is null (legacy sessions)
+                Integer meterStart = sessionToMeterStartMap.getOrDefault(sessionId, 0);
+                startKwh = meterStart / 1000.0;
+            }
 
-            log.info("Energy calculation: MeterStart={}, MeterStop={}, Energy={} kWh",
-                    meterStart, meterStop, energyKwh);
+            double stopKwh = meterStop / 1000.0;
+            double energyKwh = stopKwh - startKwh;
+
+            log.info("Energy calculation: MeterStart (kWh)={}, MeterStop (kWh)={}, Energy={} kWh",
+                    startKwh, stopKwh, energyKwh);
 
             // Update session energy before stopping
             session.setEnergyKwh(energyKwh);
@@ -445,6 +460,8 @@ public class OcppWebSocketServer extends WebSocketServer {
         sendCallResult(conn, messageId, objectMapper.createObjectNode());
     }
 
+    // REPLACE YOUR EXISTING handleMeterValues METHOD WITH THIS ONE
+
     /**
      * Handle MeterValues - Update energy consumption during charging
      * For RFID sessions: incremental wallet deduction
@@ -461,10 +478,11 @@ public class OcppWebSocketServer extends WebSocketServer {
                 return;
             }
 
-            // Extract current energy value
-            BigDecimal currentKwh = extractEnergyFromMeterValues(payload);
+            // Extract current energy value (This is the Absolute Meter Reading e.g.,
+            // 10500.5 kWh)
+            BigDecimal currentAbsKwh = extractEnergyFromMeterValues(payload);
 
-            if (currentKwh == null) {
+            if (currentAbsKwh == null) {
                 log.debug("MeterValues - no energy measurand found");
                 sendCallResult(conn, messageId, objectMapper.createObjectNode());
                 return;
@@ -483,13 +501,14 @@ public class OcppWebSocketServer extends WebSocketServer {
                 return;
             }
 
-            log.debug("MeterValues - SessionId: {}, CurrentKwh: {}, Source: {}",
-                    sessionId, currentKwh, session.getSourceType());
+            log.debug("MeterValues - SessionId: {}, CurrentAbsKwh: {}, Source: {}",
+                    sessionId, currentAbsKwh, session.getSourceType());
 
             // Handle based on session type
             if ("RFID".equals(session.getSourceType())) {
-                // RFID Flow: Incremental wallet deduction
-                Session updated = rfidChargingService.updateEnergy(sessionId, currentKwh);
+                // RFID Flow: Incremental wallet deduction (RFID service handles deltas
+                // internally)
+                Session updated = rfidChargingService.updateEnergy(sessionId, currentAbsKwh);
 
                 // If session was auto-stopped due to low balance, stop transaction
                 if ("COMPLETED".equals(updated.getStatus())) {
@@ -498,8 +517,39 @@ public class OcppWebSocketServer extends WebSocketServer {
                     sendRemoteStopTransaction(conn, transactionId);
                 }
             } else {
-                // Plan/kWh Package Flow: Check if energy limit reached
-                sessionService.checkAndStopIfReachedKwh(sessionId, currentKwh.doubleValue());
+                // ✅ FIX STARTS HERE: Plan/kWh Package Flow
+
+                // 1. Get the meter reading from when the session started
+                Double startKwh = session.getStartMeterReading();
+                if (startKwh == null) {
+                    // Fallback using map
+                    Integer startMeterWh = sessionToMeterStartMap.getOrDefault(sessionId, 0);
+                    startKwh = startMeterWh / 1000.0;
+                }
+
+                // 2. Calculate actual consumption for THIS session
+                // currentAbsKwh is already in kWh from helper method
+                double rawConsumed = currentAbsKwh.doubleValue() - startKwh;
+                // Round to 3 decimal places
+                double consumedKwh = Math.round(rawConsumed * 1000.0) / 1000.0;
+
+                // Safety: handle cases where meter might reset or glitch
+                if (consumedKwh < 0) {
+                    log.warn("Negative consumption detected (Meter reset?): Current={}, Start={}. Treating as 0.",
+                            currentAbsKwh, startKwh);
+                    consumedKwh = 0;
+                }
+
+                log.info("kWh Check: SessionId={}, AbsoluteMeter={}, StartMeter={}, Consumed={}",
+                        sessionId, currentAbsKwh, startKwh, consumedKwh);
+
+                // Update last known meter reading AND current energy usage to DB
+                session.setLastMeterReading(currentAbsKwh.doubleValue());
+                session.setEnergyKwh(consumedKwh); // ✅ SAVING ENERGY TO DB
+                sessionRepository.save(session);
+
+                // 3. Pass the CONSUMED value
+                sessionService.checkAndStopIfReachedKwh(sessionId, consumedKwh);
             }
 
             sendCallResult(conn, messageId, objectMapper.createObjectNode());
@@ -678,6 +728,32 @@ public class OcppWebSocketServer extends WebSocketServer {
         String ocppId = connectionToOcppIdMap.remove(conn);
         if (ocppId != null) {
             ocppIdToConnectionMap.remove(ocppId);
+
+            log.warn("Charger {} disconnected. Checking for active sessions to stop...", ocppId);
+            try {
+                Charger charger = chargerRepository.findByOcppId(ocppId).orElse(null);
+                if (charger != null) {
+                    charger.setAvailability(false);
+                    charger.setOccupied(false);
+                    chargerRepository.save(charger);
+
+                    // Find active or initiated session
+                    Session session = sessionRepository.findFirstByChargerAndStatusInOrderByCreatedAtDesc(
+                            charger, java.util.Arrays.asList("active", "INITIATED"))
+                            .orElse(null);
+
+                    if (session != null) {
+                        log.info("Stopping active session {} due to charger disconnection", session.getId());
+                        if ("RFID".equalsIgnoreCase(session.getSourceType())) {
+                            rfidChargingService.stopCharging(session.getId());
+                        } else {
+                            sessionService.stopSessionBySystem(session.getId());
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.error("Error stopping session on close: {}", e.getMessage());
+            }
         }
         log.info("Charger disconnected: {} (OCPP ID: {}, Code: {}, Reason: {})",
                 conn.getRemoteSocketAddress(), ocppId, code, reason);

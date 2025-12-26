@@ -155,44 +155,7 @@ public class WalletTransactionService {
         return repo.save(tx);
     }
 
-    /**
-     * Create and save a credit transaction (refund or top-up).
-     * 
-     * FIXED: Entire operation is transactional with pessimistic locking.
-     */
-    // @Transactional
-    // public WalletTransaction credit(Long userId, Long sessionId, BigDecimal
-    // amount, String method) {
-    // if (amount == null)
-    // throw new IllegalArgumentException("amount cannot be null");
-    // if (amount.compareTo(BigDecimal.ZERO) <= 0)
-    // throw new IllegalArgumentException("amount must be positive");
 
-    // // Lock user row and credit atomically
-    // User user = userRepo.findByIdWithLock(userId)
-    // .orElseThrow(() -> new RuntimeException("User not found: " + userId));
-
-    // BigDecimal balance = user.getWalletBalance() != null ?
-    // user.getWalletBalance() : BigDecimal.ZERO;
-    // user.setWalletBalance(balance.add(amount));
-    // userRepo.save(user);
-
-    // log.info("Wallet credit: userId={}, amount={}, newBalance={}, sessionId={}",
-    // userId, amount, user.getWalletBalance(), sessionId);
-
-    // // Create transaction record
-    // WalletTransaction tx = new WalletTransaction();
-    // tx.setUserId(userId);
-    // tx.setSessionId(sessionId);
-    // tx.setAmount(amount);
-    // tx.setType("credit");
-    // tx.setMethod(method != null ? method : "credit");
-    // tx.setStatus("success");
-    // tx.setTransactionRef((sessionId != null ? "sess-" + sessionId + "-" : "") +
-    // UUID.randomUUID().toString());
-
-    // return repo.save(tx);
-    // }
 
     @Transactional
     public void updateSessionIdForUser(Long userId, BigDecimal amount, Long sessionId) {

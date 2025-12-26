@@ -30,7 +30,7 @@ public class WalletTransaction {
 
     private LocalDateTime createdAt = LocalDateTime.now();
 
-    private Long sessionId; // ✅ NEW - link to Session if applicable
+    private Long sessionId; // NEW - link to Session if applicable
 
     // New fields for tax breakdown
     private BigDecimal grossAmount;

@@ -48,7 +48,7 @@ public class ReceiptService {
         }
 
         receipt.setAmount(amount);
-        receipt.setStatus("PENDING");
+        receipt.setStatus("Pending");
         receipt.setCreatedAt(LocalDateTime.now());
         return receiptRepository.save(receipt);
     }
@@ -70,29 +70,30 @@ public class ReceiptService {
                     userId,
                     "Insufficient Wallet Balance",
                     "You need ₹" + amount + " but your wallet balance is too low. Please top-up.",
-                    "WALLET_ERROR");
+                    "Wallet Error");
             throw new RuntimeException("Insufficient wallet balance. Please top-up.");
         }
 
-        // ✅ Debit wallet
+        // Debit wallet
         walletTransactionService.debit(userId, null, amount, "Charging Payment");
         receipt.setStatus("PAID");
         receipt.setUpdatedAt(LocalDateTime.now());
         receiptRepository.save(receipt);
 
-        // ✅ Start session
+        // Start session
         Session session = sessionService.startSessionFromReceipt(receipt, boxId);
         receipt.setSession(session);
         walletTransactionService.updateSessionIdForUser(userId, amount, session.getId());
 
+        // NOTE: If session fails, handleOfflineSession() in SessionService already
+        // issues
+        // the refund and throws an exception. We only update receipt status here if
+        // somehow
+        // a failed session returns without exception.
         if ("failed".equalsIgnoreCase(session.getStatus())) {
-            userNotificationService.createNotification(
-                    userId,
-                    "Charging Failed",
-                    "Your charging session could not start. You have been refunded ₹" + amount,
-                    "CHARGER_ERROR");
-            walletTransactionService.credit(userId, session.getId(), amount, "CHARGING_REFUND");
-            receipt.setStatus("REFUNDED");
+            receipt.setStatus("Refunded");
+            // Refund is already handled by SessionService.handleOfflineSession() - no
+            // duplicate refund needed
         }
 
         return receiptRepository.save(receipt);
@@ -106,7 +107,7 @@ public class ReceiptService {
                 .orElseThrow(() -> new RuntimeException("Linked receipt not found"));
 
         receipt.setAmount(finalCost);
-        receipt.setStatus("FINALIZED");
+        receipt.setStatus("Finalize");
         receipt.setUpdatedAt(LocalDateTime.now());
         receiptRepository.save(receipt);
     }

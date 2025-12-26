@@ -2,6 +2,8 @@ package com.bentork.ev_system.model;
 
 import java.time.LocalDateTime;
 
+import com.bentork.ev_system.enums.ChargerStatus;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -41,9 +43,16 @@ public class Charger {
 	@Column(nullable = false)
 	private Double rate;
 
+	@Column(name = "kw_output")
+	private Double kwOutput; // e.g., 7.4, 11.0, 22.0, 50.0
+
 	private boolean isOccupied;
 
 	private boolean availability;
+
+	@Column(nullable = false)
+	@Builder.Default
+	private String status = ChargerStatus.OFFLINE.getValue(); // busy, available, offline
 
 	private LocalDateTime createdAt = LocalDateTime.now();
 
@@ -119,4 +128,19 @@ public class Charger {
 		this.createdAt = createdAt;
 	}
 
+	public Double getKwOutput() {
+		return kwOutput;
+	}
+
+	public void setKwOutput(Double kwOutput) {
+		this.kwOutput = kwOutput;
+	}
+
+	public String getStatus() {
+		return status;
+	}
+
+	public void setStatus(String status) {
+		this.status = status;
+	}
 }

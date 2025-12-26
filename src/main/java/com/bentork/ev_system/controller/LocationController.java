@@ -1,20 +1,35 @@
 package com.bentork.ev_system.controller;
 
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
 import com.bentork.ev_system.dto.request.LocationDTO;
 import com.bentork.ev_system.mapper.LocationMapper;
 import com.bentork.ev_system.model.Admin;
 import com.bentork.ev_system.model.Location;
 import com.bentork.ev_system.repository.AdminRepository;
 import com.bentork.ev_system.repository.LocationRepository;
+import com.bentork.ev_system.service.LocationService;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.*;
+import lombok.extern.slf4j.Slf4j;
 
-import java.util.*;
-
+@Slf4j
 @RestController
 @RequestMapping("/api/location")
 @PreAuthorize("hasAuthority('ADMIN')")
@@ -26,75 +41,138 @@ public class LocationController {
     @Autowired
     private AdminRepository adminRepository;
 
-    // ✅ Add location
+    @Autowired
+    private LocationService locationService;
+
     @PostMapping("/add")
     public ResponseEntity<?> addLocation(@RequestBody LocationDTO dto, Authentication authentication) {
         String adminEmail = authentication.getName();
-        Optional<Admin> admin = adminRepository.findByEmail(adminEmail);
-        if (admin.isEmpty()) {
-            return ResponseEntity.status(403).body(Collections.singletonMap("error", "Admin not found"));
-        }
+        log.info("POST /api/location/add - Creating location, city={}, adminEmail={}",
+                dto.getCity(), adminEmail);
 
-        Location location = LocationMapper.toEntity(dto, admin.get());
-        locationRepository.save(location);
-        return ResponseEntity.ok(Collections.singletonMap("message", "Location Added"));
+        try {
+            Optional<Admin> admin = adminRepository.findByEmail(adminEmail);
+            if (admin.isEmpty()) {
+                log.warn("POST /api/location/add - Admin not found: adminEmail={}", adminEmail);
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(Collections.singletonMap("error", "Admin not found"));
+            }
+
+            Location location = LocationMapper.toEntity(dto, admin.get());
+            Location saved = locationRepository.save(location);
+            log.info("POST /api/location/add - Success, locationId={}, adminEmail={}",
+                    saved.getId(), adminEmail);
+            return ResponseEntity.ok(location);
+        } catch (Exception e) {
+            log.error("POST /api/location/add - Failed, adminEmail={}: {}",
+                    adminEmail, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Collections.singletonMap("error", "Failed to add location"));
+        }
     }
 
-
-    // ✅ Get all locations
     @GetMapping("/all")
     public ResponseEntity<?> getAllLocations() {
+        log.info("GET /api/location/all - Request received");
+
         try {
             List<Location> locations = locationRepository.findAll();
+            log.info("GET /api/location/all - Success, returned {} locations", locations.size());
             return ResponseEntity.ok(locations);
         } catch (Exception e) {
-            e.printStackTrace(); // Important for logs
-            return ResponseEntity.status(500).body(Collections.singletonMap("error", "Failed to fetch locations"));
+            log.error("GET /api/location/all - Failed: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Collections.singletonMap("error", "Failed to fetch locations"));
         }
     }
 
-
-    // ✅ Get location by ID
     @GetMapping("/{id}")
     public ResponseEntity<?> getLocationById(@PathVariable Long id) {
-        Optional<Location> location = locationRepository.findById(id);
+        log.info("GET /api/location/{} - Request received", id);
 
-        if (location.isPresent()) {
-            return ResponseEntity.ok(location.get());
-        } else {
-            return ResponseEntity.status(404).body(Collections.singletonMap("error", "Location not found"));
+        try {
+            Optional<Location> location = locationRepository.findById(id);
+
+            if (location.isPresent()) {
+                log.info("GET /api/location/{} - Success, city={}",
+                        id, location.get().getCity());
+                return ResponseEntity.ok(location.get());
+            } else {
+                log.warn("GET /api/location/{} - Location not found", id);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(Collections.singletonMap("error", "Location not found"));
+            }
+        } catch (Exception e) {
+            log.error("GET /api/location/{} - Failed: {}", id, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Collections.singletonMap("error", "Failed to fetch location"));
         }
     }
 
-
-    // ✅ Update location
     @PutMapping("/update/{id}")
-    public ResponseEntity<?> updateLocation(@PathVariable Long id, @RequestBody LocationDTO updatedDto, Authentication authentication) {
-        Optional<Location> optionalLocation = locationRepository.findById(id);
-        if (optionalLocation.isEmpty()) {
-            return ResponseEntity.status(404).body(Collections.singletonMap("error", "Location not found"));
-        }
-
+    public ResponseEntity<?> updateLocation(@PathVariable Long id, @RequestBody LocationDTO updatedDto,
+            Authentication authentication) {
         String adminEmail = authentication.getName();
-        Optional<Admin> admin = adminRepository.findByEmail(adminEmail);
-        if (admin.isEmpty()) {
-            return ResponseEntity.status(403).body(Collections.singletonMap("error", "Admin not found"));
-        }
+        log.info("PUT /api/location/update/{} - Updating location, adminEmail={}", id, adminEmail);
 
-        Location updated = LocationMapper.updateEntity(optionalLocation.get(), updatedDto, admin.get());
-        locationRepository.save(updated);
-        return ResponseEntity.ok(Collections.singletonMap("message", "Location Updated"));
+        try {
+            Optional<Location> optionalLocation = locationRepository.findById(id);
+            if (optionalLocation.isEmpty()) {
+                log.warn("PUT /api/location/update/{} - Location not found", id);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(Collections.singletonMap("error", "Location not found"));
+            }
+
+            Optional<Admin> admin = adminRepository.findByEmail(adminEmail);
+            if (admin.isEmpty()) {
+                log.warn("PUT /api/location/update/{} - Admin not found: adminEmail={}",
+                        id, adminEmail);
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(Collections.singletonMap("error", "Admin not found"));
+            }
+
+            Location updated = LocationMapper.updateEntity(optionalLocation.get(), updatedDto, admin.get());
+            locationRepository.save(updated);
+            log.info("PUT /api/location/update/{} - Success, adminEmail={}", id, adminEmail);
+            return ResponseEntity.ok(Collections.singletonMap("message", "Location Updated"));
+        } catch (Exception e) {
+            log.error("PUT /api/location/update/{} - Failed, adminEmail={}: {}",
+                    id, adminEmail, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Collections.singletonMap("error", "Failed to update location"));
+        }
     }
 
-
-    // ✅ Delete location
     @DeleteMapping("/delete/{id}")
     public ResponseEntity<?> deleteLocation(@PathVariable Long id) {
-        if (locationRepository.existsById(id)) {
-            locationRepository.deleteById(id);
-            return ResponseEntity.ok(Collections.singletonMap("message", "Location Deleted"));
-        } else {
-            return ResponseEntity.status(404).body(Collections.singletonMap("error", "Location not found"));
+        log.info("DELETE /api/location/delete/{} - Request received", id);
+
+        try {
+            if (locationRepository.existsById(id)) {
+                locationRepository.deleteById(id);
+                log.info("DELETE /api/location/delete/{} - Success", id);
+                return ResponseEntity.ok(Collections.singletonMap("message", "Location Deleted"));
+            } else {
+                log.warn("DELETE /api/location/delete/{} - Location not found", id);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(Collections.singletonMap("error", "Location not found"));
+            }
+        } catch (Exception e) {
+            log.error("DELETE /api/location/delete/{} - Failed: {}", id, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Collections.singletonMap("error", "Failed to delete location"));
+        }
+    }
+
+    @GetMapping("/all/name")
+    public ResponseEntity<?> getAllLocationNames() {
+        try {
+            log.info("Calling Location service to get all location name and id.");
+            List<Map<String, Object>> location = locationService.getAllLocationNames();
+            return ResponseEntity.ok(location);
+        } catch (Exception e) {
+            log.error("Fail to get location name and id: {}", e);
+            return ResponseEntity.internalServerError().body("Error Fetching location info");
         }
     }
 }

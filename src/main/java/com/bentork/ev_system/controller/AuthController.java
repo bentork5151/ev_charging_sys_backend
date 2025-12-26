@@ -1,10 +1,12 @@
 package com.bentork.ev_system.controller;
 
-//import com.bentork.ev_system.dto.*;
+import java.nio.file.attribute.UserPrincipalNotFoundException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -12,7 +14,9 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -23,6 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.bentork.ev_system.config.JwtUtil;
 import com.bentork.ev_system.dto.request.AdminLoginRequest;
 import com.bentork.ev_system.dto.request.AdminSignupRequest;
+import com.bentork.ev_system.dto.request.GoogleLoginResponse;
 import com.bentork.ev_system.dto.request.JwtResponse;
 import com.bentork.ev_system.dto.request.UserLoginRequest;
 import com.bentork.ev_system.dto.request.UserSignupRequest;
@@ -88,6 +93,26 @@ public class AuthController {
         return ResponseEntity.ok(userRepo.count());
     }
 
+    // user details from email - authentication using token (admin, user)
+    @GetMapping("/user/byemail/{email}")
+    public ResponseEntity<User> getUserDetailsByEmail(@RequestHeader("Authorization") String authHeader,
+            @PathVariable String email) throws UserPrincipalNotFoundException {
+        User user = userRepo.findByEmail(email)
+                .orElseThrow(() -> new UserPrincipalNotFoundException("User with email '" + email + "' not found."));
+        return ResponseEntity.ok(user);
+    }
+
+    // Delete user
+    @DeleteMapping("/user/delete/{id}")
+    public ResponseEntity<?> deleteUserById(@RequestHeader("Authorization") String authHeader, @PathVariable Long id) {
+        try {
+            userRepo.deleteById(id);
+            return ResponseEntity.ok("User Deleted Successfully");
+        } catch (DataAccessException e) {
+            throw new RuntimeException("Database error while fetching user", e);
+        }
+    }
+
     @PostMapping("/admin/signup")
     public ResponseEntity<?> registerAdmin(@RequestBody AdminSignupRequest request) {
         if (adminRepo.existsByEmail(request.getEmail())) {
@@ -114,7 +139,7 @@ public class AuthController {
 
     // Total Admin - admin only
     @GetMapping("/admin/all/total")
-    public ResponseEntity<Long> getAllAdmin(@RequestHeader("Authorization") String authHeader) {
+    public ResponseEntity<Long> getAllAdminTotal(@RequestHeader("Authorization") String authHeader) {
         return ResponseEntity.ok(adminRepo.count());
     }
 
@@ -128,6 +153,17 @@ public class AuthController {
     @GetMapping("/dealer/total")
     public ResponseEntity<Long> getTotalDealer(@RequestHeader("Authorization") String authHeader) {
         return ResponseEntity.ok(adminRepo.countAdminByRole("DEALER"));
+    }
+
+    // list of admin present, including dealer
+    @GetMapping("/admin/alladmin")
+    public ResponseEntity<List<Admin>> getAllAdmin(@RequestHeader("Authorization") String authHeader) {
+        try {
+            List<Admin> admins = adminRepo.findAll();
+            return ResponseEntity.ok(admins);
+        } catch (DataAccessException e) {
+            throw new RuntimeException("Database error while fetching admins", e);
+        }
     }
 
     @PostMapping("/user/request-otp")
@@ -195,23 +231,22 @@ public class AuthController {
     }
 
     @GetMapping("/user/google-login-success")
-    public ResponseEntity<?> googleLoginSuccess(OAuth2AuthenticationToken authToken) {
-        String email = authToken.getPrincipal().getAttribute("email");
-        String name = authToken.getPrincipal().getAttribute("name");
-
+    public ResponseEntity<?> googleLoginSuccess(@RequestParam String email) {
         Optional<User> optionalUser = userRepo.findByEmail(email);
-        User user = optionalUser.orElseGet(() -> {
-            User newUser = new User();
-            newUser.setName(name);
-            newUser.setEmail(email);
-            newUser.setPassword(""); // No password as it's Google login
-            return userRepo.save(newUser);
-        });
+
+        User user = optionalUser.orElseThrow();
 
         UserDetails userDetails = new org.springframework.security.core.userdetails.User(
                 user.getEmail(), "", Collections.emptyList());
+
         String token = jwtUtil.generateToken(userDetails);
-        return ResponseEntity.ok(new JwtResponse(token));
+        // return ResponseEntity.ok(new JwtResponse(token));
+        return ResponseEntity.ok(
+                new GoogleLoginResponse(
+                        token,
+                        user.getName(),
+                        user.getEmail(),
+                        user.getImageUrl()));
     }
 
 }

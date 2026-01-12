@@ -33,6 +33,7 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
         OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
         String email = oAuth2User.getAttribute("email");
         String name = oAuth2User.getAttribute("name");
+        String imageUrl = oAuth2User.getAttribute("picture");
 
         Optional<User> optionalUser = userRepo.findByEmail(email);
         User user = optionalUser.orElseGet(() -> {
@@ -40,12 +41,23 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
             newUser.setName(name);
             newUser.setEmail(email);
             newUser.setPassword("");
+            newUser.setImageUrl(imageUrl);
+
             try {
                 return userRepo.save(newUser);
             } catch (Exception e) {
                 throw new RuntimeException("Error saving new user: " + e.getMessage(), e);
             }
         });
+
+        // Update profile picture if user exists but image changed
+        if (optionalUser.isPresent() && imageUrl != null) {
+            User existingUser = optionalUser.get();
+            if (!imageUrl.equals(existingUser.getImageUrl())) {
+                existingUser.setImageUrl(imageUrl);
+                user = userRepo.save(existingUser);
+            }
+        }
 
         UserDetails userDetails = new org.springframework.security.core.userdetails.User(
                 user.getEmail(), "", Collections.emptyList());

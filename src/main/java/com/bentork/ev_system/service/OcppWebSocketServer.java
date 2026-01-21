@@ -54,8 +54,8 @@ public class OcppWebSocketServer extends WebSocketServer {
     @Value("${ocpp.server.port:8887}")
     private int serverPort;
 
-    // json response in every 30s
-    @Value("${ocpp.heartbeat.interval:30}")
+    // json response in every 5s
+    @Value("${ocpp.heartbeat.interval:5}")
     private int heartbeatInterval;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -466,30 +466,42 @@ public class OcppWebSocketServer extends WebSocketServer {
     }
 
     /**
-     * Handle StatusNotification - Update charger availability
+     * Handle StatusNotification - Update charger status from OCPP
+     * Handles all OCPP 1.6 statuses including Faulted (emergency button, non-earth
+     * switch)
      */
     private void handleStatusNotification(WebSocket conn, String messageId, JsonNode payload) {
         String ocppId = connectionToOcppIdMap.get(conn);
         int connectorId = payload.has("connectorId") ? payload.get("connectorId").asInt() : 0;
         String status = payload.has("status") ? payload.get("status").asText() : "Unknown";
+        String errorCode = payload.has("errorCode") ? payload.get("errorCode").asText() : "NoError";
+        String vendorErrorCode = payload.has("vendorErrorCode") ? payload.get("vendorErrorCode").asText() : "";
 
-        log.info("StatusNotification - OCPP_ID: {}, Connector: {}, Status: {}",
-                ocppId, connectorId, status);
+        log.info("StatusNotification - OCPP_ID: {}, Connector: {}, Status: {}, ErrorCode: {}",
+                ocppId, connectorId, status, errorCode);
 
-        // Update charger availability in database
+        // Update charger status in database
         try {
             Charger charger = chargerRepository.findByOcppId(ocppId).orElse(null);
             if (charger != null) {
-                boolean isAvailable = "Available".equalsIgnoreCase(status);
-                boolean isOccupied = "Occupied".equalsIgnoreCase(status) ||
-                        "Charging".equalsIgnoreCase(status);
+                // Map OCPP status to ChargerStatus enum
+                ChargerStatus chargerStatus = ChargerStatus.fromString(status);
 
-                charger.setAvailability(isAvailable);
-                charger.setOccupied(isOccupied);
+                // Update charger status from OCPP
+                charger.setStatus(chargerStatus.getValue());
+                charger.setAvailability(chargerStatus == ChargerStatus.AVAILABLE);
+                charger.setOccupied(chargerStatus == ChargerStatus.BUSY);
                 chargerRepository.save(charger);
 
-                log.debug("Updated charger {}: available={}, occupied={}",
-                        charger.getId(), isAvailable, isOccupied);
+                log.info("Charger {} status updated to: {} (from OCPP: {})",
+                        ocppId, chargerStatus.getValue(), status);
+
+                // Log warning for faulted chargers
+                if (chargerStatus == ChargerStatus.FAULTED) {
+                    log.warn("ALERT: Charger {} is FAULTED! ErrorCode: {}, VendorErrorCode: {}. " +
+                            "Possible causes: non-earth switch, emergency button pressed.",
+                            ocppId, errorCode, vendorErrorCode);
+                }
             }
         } catch (Exception e) {
             log.error("Error updating charger status: {}", e.getMessage());
@@ -515,6 +527,10 @@ public class OcppWebSocketServer extends WebSocketServer {
                 sendCallResult(conn, messageId, objectMapper.createObjectNode());
                 return;
             }
+
+            // ✅ DEBUG: Log all measurands the charger sends
+            log.info("MeterValues received - Raw payload: {}", payload.toString());
+            logAllMeasurands(payload);
 
             // Extract current energy value (This is the Absolute Meter Reading e.g.,
             // 10500.5 kWh)
@@ -547,6 +563,14 @@ public class OcppWebSocketServer extends WebSocketServer {
                 // RFID Flow: Incremental wallet deduction (RFID service handles deltas
                 // internally)
                 Session updated = rfidChargingService.updateEnergy(sessionId, currentAbsKwh);
+
+                // ✅ Extract and save charging duration for RFID sessions too
+                Long durationSeconds = extractDurationFromMeterValues(payload);
+                if (durationSeconds != null) {
+                    updated.setChargingDurationSeconds(durationSeconds);
+                    sessionRepository.save(updated);
+                    log.info("RFID Duration Update: SessionId={}, DurationSeconds={}", sessionId, durationSeconds);
+                }
 
                 // If session was auto-stopped due to low balance, stop transaction
                 if (SessionStatus.COMPLETED.matches(updated.getStatus())) {
@@ -584,6 +608,14 @@ public class OcppWebSocketServer extends WebSocketServer {
                 // Update last known meter reading AND current energy usage to DB
                 session.setLastMeterReading(currentAbsKwh.doubleValue());
                 session.setEnergyKwh(consumedKwh); // ✅ SAVING ENERGY TO DB
+
+                // ✅ Extract and save charging duration from MeterValues
+                Long durationSeconds = extractDurationFromMeterValues(payload);
+                if (durationSeconds != null) {
+                    session.setChargingDurationSeconds(durationSeconds);
+                    log.info("Duration Update: SessionId={}, DurationSeconds={}", sessionId, durationSeconds);
+                }
+
                 sessionRepository.save(session);
 
                 // 3. Pass the CONSUMED value
@@ -651,6 +683,85 @@ public class OcppWebSocketServer extends WebSocketServer {
             log.error("Error parsing meter values: {}", e.getMessage());
         }
         return null; // Return null if no valid energy value was found
+    }
+
+    /**
+     * Extract transaction duration from OCPP MeterValues payload
+     * Looks for the 'Transaction.Duration' measurand (reported in seconds)
+     */
+    private Long extractDurationFromMeterValues(JsonNode payload) {
+        try {
+            if (!payload.has("meterValue"))
+                return null;
+
+            JsonNode meterValues = payload.get("meterValue");
+            if (!meterValues.isArray())
+                return null;
+
+            for (JsonNode meterValue : meterValues) {
+                if (!meterValue.has("sampledValue"))
+                    continue;
+
+                JsonNode sampledValues = meterValue.get("sampledValue");
+                if (!sampledValues.isArray())
+                    continue;
+
+                for (JsonNode sample : sampledValues) {
+                    if (!sample.has("measurand")) {
+                        continue;
+                    }
+
+                    String measurand = sample.get("measurand").asText();
+
+                    // Transaction.Duration is reported in seconds
+                    if ("Transaction.Duration".equals(measurand)) {
+                        String valueStr = sample.get("value").asText();
+                        Long durationSeconds = Long.parseLong(valueStr);
+
+                        log.debug("Extracted charging duration: {} seconds", durationSeconds);
+                        return durationSeconds;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.error("Error parsing duration from meter values: {}", e.getMessage());
+        }
+        return null; // Return null if no duration value was found
+    }
+
+    /**
+     * Debug helper: Log all measurands the charger sends in MeterValues
+     * This helps identify what data is available from the charger
+     */
+    private void logAllMeasurands(JsonNode payload) {
+        try {
+            if (!payload.has("meterValue"))
+                return;
+
+            JsonNode meterValues = payload.get("meterValue");
+            if (!meterValues.isArray())
+                return;
+
+            StringBuilder sb = new StringBuilder("Available measurands: ");
+            for (JsonNode meterValue : meterValues) {
+                if (!meterValue.has("sampledValue"))
+                    continue;
+
+                JsonNode sampledValues = meterValue.get("sampledValue");
+                if (!sampledValues.isArray())
+                    continue;
+
+                for (JsonNode sample : sampledValues) {
+                    String measurand = sample.has("measurand") ? sample.get("measurand").asText() : "DEFAULT";
+                    String value = sample.has("value") ? sample.get("value").asText() : "N/A";
+                    String unit = sample.has("unit") ? sample.get("unit").asText() : "N/A";
+                    sb.append(String.format("[%s=%s %s] ", measurand, value, unit));
+                }
+            }
+            log.info(sb.toString());
+        } catch (Exception e) {
+            log.error("Error logging measurands: {}", e.getMessage());
+        }
     }
 
     /**

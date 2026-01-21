@@ -7,12 +7,14 @@ package com.bentork.ev_system.enums;
  * - BUSY: Charger is currently in use (active session)
  * - AVAILABLE: Charger is connected and ready to use
  * - OFFLINE: Charger is disconnected from the system
+ * - FAULTED: Charger has an error/fault condition
  */
 public enum ChargerStatus {
 
     BUSY("busy"), // Active charging session
     AVAILABLE("available"), // Connected and ready
-    OFFLINE("offline"); // Disconnected
+    OFFLINE("offline"), // Disconnected
+    FAULTED("faulted"); // Error/fault condition
 
     private final String value;
 
@@ -35,15 +37,25 @@ public enum ChargerStatus {
         String normalized = status.toLowerCase().trim();
 
         switch (normalized) {
+            // BUSY: Active session, reserved, preparing, or finishing
             case "busy":
             case "occupied":
             case "charging":
+            case "preparing":
+            case "finishing":
+            case "reserved":
                 return BUSY;
             case "available":
                 return AVAILABLE;
+            // Faulted status from OCPP (emergency button, non-earth switch, etc.)
+            case "faulted":
+            case "error":
+                return FAULTED;
+            // OFFLINE: Unavailable, suspended states, disconnected
             case "offline":
             case "unavailable":
-            case "faulted":
+            case "suspendedevse":
+            case "suspendedev":
             default:
                 return OFFLINE;
         }
